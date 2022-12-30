@@ -698,6 +698,7 @@ fn convert_path(
     let has_bbox = path.has_bbox();
     let fill = style::resolve_fill(node, has_bbox, state, cache);
     let stroke = style::resolve_stroke(node, has_bbox, state, cache);
+    let vector_effect = style::resolve_vector_effect(node);
     let mut visibility = node.find_attribute(AId::Visibility).unwrap_or_default();
     let rendering_mode = node
         .find_attribute(AId::ShapeRendering)
@@ -729,6 +730,7 @@ fn convert_path(
         stroke,
         paint_order,
         rendering_mode,
+        vector_effect,
         text_bbox: None,
         data: path,
     }));

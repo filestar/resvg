@@ -11,7 +11,7 @@ mod shaper;
 use crate::{converter, svgtree};
 use crate::{BaseGradient, Color, LinearGradient, Pattern, RadialGradient};
 use crate::{FillRule, Group, Node, NodeExt, NodeKind, Paint, Path, PathBbox, PathData, Rect};
-use crate::{ShapeRendering, Stroke, StrokeWidth, Transform, TransformFromBBox, Units};
+use crate::{ShapeRendering, Stroke, StrokeWidth, VectorEffect, Transform, TransformFromBBox, Units};
 use convert::TextDecorationStyle;
 use convert::{TextFlow, TextSpan, WritingMode};
 use shaper::OutlinedCluster;
@@ -294,6 +294,7 @@ fn convert_span(
         stroke: span.stroke.take(),
         paint_order: span.paint_order,
         rendering_mode: ShapeRendering::default(),
+        vector_effect: VectorEffect::None,
         text_bbox: bboxes_data.bbox().and_then(|r| r.to_rect()),
         data: Rc::new(path_data),
     };

@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use crate::svgtree::{self, AId};
 use crate::{
-    converter, paint_server, FuzzyEq, LinearGradient, Opacity, Pattern, RadialGradient, Units,
+    converter, paint_server, FuzzyEq, LinearGradient, Opacity, Pattern, RadialGradient, Units, VectorEffect,
 };
 use strict_num::NonZeroPositiveF64;
 
@@ -336,6 +336,16 @@ pub(crate) fn resolve_stroke(
     };
 
     Some(stroke)
+}
+
+pub(crate) fn resolve_vector_effect(
+    node: svgtree::Node,
+) -> VectorEffect {
+    if let Some(n) = node.find_node_with_attribute(AId::VectorEffect) {
+        n.find_attribute(AId::VectorEffect).unwrap_or_default()
+    } else {
+        VectorEffect::default()
+    }
 }
 
 fn convert_paint(

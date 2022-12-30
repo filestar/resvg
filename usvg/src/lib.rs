@@ -414,6 +414,26 @@ impl Default for PaintOrder {
     }
 }
 
+#[allow(missing_docs)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum VectorEffect {
+    None,
+    NonScalingStroke,
+    NonScalingSize,
+    NonRotation,
+    FixedPosition,
+}
+
+impl_enum_default!(VectorEffect, None);
+
+impl_enum_from_str!(VectorEffect,
+    "none" => VectorEffect::None,
+    "non-scaling-stroke" => VectorEffect::NonScalingStroke,
+    "non-scaling-size" => VectorEffect::NonScalingSize,
+    "non-rotation" => VectorEffect::NonRotation,
+    "fixed-position" => VectorEffect::FixedPosition
+);
+
 /// A path element.
 #[derive(Clone, Debug)]
 pub struct Path {
@@ -448,6 +468,11 @@ pub struct Path {
     ///
     /// `shape-rendering` in SVG.
     pub rendering_mode: ShapeRendering,
+    
+    /// Vector effect.
+    /// 
+    /// `vector-effect` in SVG.
+    pub vector_effect: VectorEffect,
 
     /// Contains a text bbox.
     ///
@@ -477,6 +502,7 @@ impl Default for Path {
             stroke: None,
             paint_order: PaintOrder::default(),
             rendering_mode: ShapeRendering::default(),
+            vector_effect: VectorEffect::None,
             text_bbox: None,
             data: Rc::new(PathData::default()),
         }
