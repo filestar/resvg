@@ -92,9 +92,16 @@ fn collect_paint_servers(root: Node, paint_servers: &mut Vec<Paint>) {
 }
 
 #[cfg(feature = "filter")]
-fn collect_filters(root: Node, filters: &mut Vec<Rc<filter::Filter>>) {
-    for n in root.descendants() {
+fn collect_filters(node: Node, filters: &mut Vec<Rc<filter::Filter>>, visited: &mut Vec<Node>) {
+    if visited.iter().rev().any(|other| other == &node) {
+        return;
+    }
+    visited.push(node.clone());
+    for n in node.descendants() {
         if let NodeKind::Group(ref g) = *n.borrow() {
+            if let Some(mask) = &g.mask {
+                collect_filters(mask.root.clone(), filters, visited);
+            }
             for filter in &g.filters {
                 if !filters.iter().any(|other| Rc::ptr_eq(other, &filter)) {
                     filters.push(filter.clone());
@@ -107,7 +114,7 @@ fn collect_filters(root: Node, filters: &mut Vec<Rc<filter::Filter>>) {
 #[cfg(feature = "filter")]
 fn conv_filters(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
     let mut filters = Vec::new();
-    collect_filters(tree.root.clone(), &mut filters);
+    collect_filters(tree.root.clone(), &mut filters, &mut Vec::new());
 
     let mut written_fe_image_nodes: Vec<String> = Vec::new();
     for filter in filters {
