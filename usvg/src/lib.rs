@@ -643,11 +643,16 @@ impl Tree {
 
     /// Parses `Tree` from an SVG string.
     pub fn from_str(text: &str, opt: &OptionsRef) -> Result<Self, Error> {
+        let processed_text = text.replace("\0", "");
+        if processed_text.len() != text.len() {
+            log::warn!("Found one or more invalid characters in input.");
+        }
+
         let mut xml_opt = roxmltree::ParsingOptions::default();
         xml_opt.allow_dtd = true;
 
         let doc =
-            roxmltree::Document::parse_with_options(text, xml_opt).map_err(Error::ParsingFailed)?;
+            roxmltree::Document::parse_with_options(&processed_text, xml_opt).map_err(Error::ParsingFailed)?;
 
         Self::from_xmltree(&doc, opt)
     }
