@@ -175,6 +175,11 @@ fn parse_xml_node(
         {
             super::text::parse_svg_text_element(node, node_id, style_sheet, doc)?;
         }
+    } else if tag_name == EId::Title {
+        #[cfg(feature = "text")]
+        {
+            super::text::parse_svg_title_element(node, node_id, doc)?;
+        }
     } else if tag_name == EId::Use {
         parse_svg_use_element(node, origin, node_id, style_sheet, depth + 1, doc)?;
     } else {

@@ -208,6 +208,7 @@ pub struct TextSpan {
     pub word_spacing: f64,
     pub text_length: Option<f64>,
     pub length_adjust: LengthAdjust,
+    pub title: Option<String>,
 }
 
 impl TextSpan {
@@ -391,6 +392,7 @@ fn collect_text_chunks_impl(
             }
         }
 
+        let title = parent.title().map(ToOwned::to_owned);
         let span = TextSpan {
             start: 0,
             end: 0,
@@ -412,6 +414,7 @@ fn collect_text_chunks_impl(
             word_spacing: parent.resolve_length(AId::WordSpacing, state, 0.0),
             text_length,
             length_adjust: parent.find_attribute(AId::LengthAdjust).unwrap_or_default(),
+            title,
         };
 
         let mut is_new_span = true;

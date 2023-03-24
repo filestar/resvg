@@ -490,6 +490,9 @@ pub struct Path {
     ///
     /// All segments are in absolute coordinates.
     pub data: Rc<PathData>,
+
+    /// Contents of SVG <title> element child.
+    pub title: Option<String>,
 }
 
 impl Default for Path {
@@ -505,6 +508,7 @@ impl Default for Path {
             vector_effect: VectorEffect::None,
             text_bbox: None,
             data: Rc::new(PathData::default()),
+            title: None,
         }
     }
 }
@@ -576,6 +580,9 @@ pub struct Group {
     ///
     /// `None` indicates an `accumulate` value.
     pub enable_background: Option<EnableBackground>,
+
+    /// Contents of SVG <title> element child.
+    pub title: Option<String>,
 }
 
 impl Default for Group {
@@ -595,6 +602,7 @@ impl Default for Group {
             #[cfg(feature = "filter")]
             filter_stroke: None,
             enable_background: None,
+            title: None,
         }
     }
 }

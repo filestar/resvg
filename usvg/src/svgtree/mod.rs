@@ -346,6 +346,13 @@ impl<'a> Node<'a> {
         }
     }
 
+    #[cfg(feature = "text")]
+    pub fn title(&self) -> Option<&'a str> {
+        self.children()
+            .find(|child| child.has_tag_name(EId::Title))
+            .map(|child| child.text())
+    }
+
     #[inline]
     fn gen_node(&self, id: NodeId) -> Node<'a> {
         Node {

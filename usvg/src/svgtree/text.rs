@@ -31,6 +31,24 @@ pub fn parse_svg_text_element(
     Ok(())
 }
 
+pub fn parse_svg_title_element(
+    parent: roxmltree::Node,
+    parent_id: NodeId,
+    doc: &mut Document,
+) -> Result<(), Error> {
+    debug_assert_eq!(parent.tag_name().name(), "title");
+
+    for node in parent.children() {
+        if node.is_text() {
+            let text = trim_text(node.text().unwrap(), XmlSpace::Default);
+            doc.append(parent_id, NodeKind::Text(text));
+            continue;
+        }
+    }
+
+    Ok(())
+}
+
 fn parse_svg_text_element_impl(
     parent: roxmltree::Node,
     parent_id: NodeId,

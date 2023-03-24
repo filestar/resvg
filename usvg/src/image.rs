@@ -178,6 +178,9 @@ pub struct Image {
 
     /// Image data.
     pub kind: ImageKind,
+
+    /// Contents of SVG <title> element child.
+    pub title: Option<String>,
 }
 
 pub(crate) fn convert(
@@ -219,6 +222,7 @@ pub(crate) fn convert(
         aspect: node.attribute(AId::PreserveAspectRatio).unwrap_or_default(),
     };
 
+    let title = node.title().map(ToOwned::to_owned);
     parent.append_kind(NodeKind::Image(Image {
         id: node.element_id().to_string(),
         transform: Default::default(),
@@ -226,6 +230,7 @@ pub(crate) fn convert(
         view_box,
         rendering_mode,
         kind,
+        title,
     }));
 
     Some(())
