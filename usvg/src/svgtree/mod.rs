@@ -351,6 +351,7 @@ impl<'a> Node<'a> {
         self.children()
             .find(|child| child.has_tag_name(EId::Title))
             .map(|child| child.text())
+            .or_else(|| self.attribute(AId::Label))
     }
 
     #[inline]

@@ -12,6 +12,7 @@ use crate::{EnableBackground, Error, Opacity, Rect};
 const SVG_NS: &str = "http://www.w3.org/2000/svg";
 const XLINK_NS: &str = "http://www.w3.org/1999/xlink";
 const XML_NAMESPACE_NS: &str = "http://www.w3.org/XML/1998/namespace";
+const INKSCAPE_NS: &str = "http://www.inkscape.org/namespaces/inkscape";
 
 impl Document {
     pub fn parse(xml: &roxmltree::Document) -> Result<Document, Error> {
@@ -210,7 +211,7 @@ pub(super) fn parse_svg_element(
     // Copy presentational attributes first.
     for attr in xml_node.attributes() {
         match attr.namespace() {
-            None | Some(SVG_NS) | Some(XLINK_NS) | Some(XML_NAMESPACE_NS) => {}
+            None | Some(SVG_NS) | Some(XLINK_NS) | Some(XML_NAMESPACE_NS) | Some(INKSCAPE_NS) => {}
             _ => continue,
         }
 
