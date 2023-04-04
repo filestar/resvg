@@ -40,21 +40,22 @@ static FEATURES: &[&str] = &[
     // "http://www.w3.org/TR/SVG11/feature#BasicFont",
 ];
 
-pub(crate) fn convert(
-    node: svgtree::Node,
+pub(crate) fn convert<'a>(
+    node: svgtree::Node<'a>,
     state: &converter::State,
     cache: &mut converter::Cache,
     parent: &mut Node,
+    node_stack: &mut Vec<converter::DeferredNode<'a>>,
 ) -> Option<()> {
     let child = node
         .children()
         .find(|n| is_condition_passed(*n, state.opt))?;
     match converter::convert_group(node, state, false, cache, parent) {
         converter::GroupKind::Create(ref mut g) => {
-            converter::convert_element(child, state, cache, g);
+            converter::convert_element_impl(child, state, cache, g, node_stack);
         }
         converter::GroupKind::Skip => {
-            converter::convert_element(child, state, cache, parent);
+            converter::convert_element_impl(child, state, cache, parent, node_stack);
         }
         converter::GroupKind::Ignore => {}
     }

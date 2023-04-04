@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
@@ -65,6 +66,11 @@ impl Cache {
             }
         }
     }
+}
+
+pub(crate) struct DeferredNode<'a> {
+    node: svgtree::Node<'a>,
+    parent: Rc<RefCell<Node>>,
 }
 
 // TODO: is there a simpler way?
@@ -236,6 +242,24 @@ pub(crate) fn convert_children(
     }
 }
 
+fn push_children<'a>(
+    parent_node: svgtree::Node<'a>,
+    parent: Rc<RefCell<Node>>,
+    node_stack: &mut Vec<DeferredNode<'a>>,
+) {
+    // Collecting to a Vec here is not great, but necessary for now because `svgtree::Children`
+    // doesn't implement `DoubleEndedIterator`, and I don't feel confident enough in my
+    // understanding of svgtree's structure to implement it myself.
+    let children: Vec<_> = parent_node.children().collect();
+    for node in children {
+        let node = DeferredNode {
+            node,
+            parent: parent.clone(),
+        };
+        node_stack.push(node);
+    }
+}
+
 #[inline(never)]
 pub(crate) fn convert_element(
     node: svgtree::Node,
@@ -243,6 +267,27 @@ pub(crate) fn convert_element(
     cache: &mut converter::Cache,
     parent: &mut Node,
 ) -> Option<Node> {
+    let mut node_stack = Vec::new();
+    let ret_val = convert_element_impl(node, state, cache, parent, &mut node_stack);
+
+    loop {
+        let Some(next_node) = node_stack.pop() else {
+            break;
+        };
+
+        convert_element_impl(next_node.node, state, cache, &mut next_node.parent.borrow_mut(), &mut node_stack);
+    }
+
+    ret_val.map(|val| val.borrow().clone())
+}
+
+pub(crate) fn convert_element_impl<'a>(
+    node: svgtree::Node<'a>,
+    state: &State,
+    cache: &mut converter::Cache,
+    parent: &mut Node,
+    node_stack: &mut Vec<DeferredNode<'a>>,
+) -> Option<Rc<RefCell<Node>>> {
     let tag_name = node.tag_name()?;
 
     if !tag_name.is_graphic() && !matches!(tag_name, EId::G | EId::Switch | EId::Svg) {
@@ -259,15 +304,19 @@ pub(crate) fn convert_element(
     }
 
     if tag_name == EId::Switch {
-        switch::convert(node, state, cache, parent);
+        switch::convert(node, state, cache, parent, node_stack);
         return None;
     }
 
-    let parent = &mut match convert_group(node, state, false, cache, parent) {
-        GroupKind::Create(g) => g,
-        GroupKind::Skip => parent.clone(),
-        GroupKind::Ignore => return None,
-    };
+    let parent = Rc::new(
+        RefCell::new(
+            match convert_group(node, state, false, cache, parent) {
+                GroupKind::Create(g) => g,
+                GroupKind::Skip => parent.clone(),
+                GroupKind::Ignore => return None,
+            }
+        )
+    );
 
     match tag_name {
         EId::Rect
@@ -278,29 +327,29 @@ pub(crate) fn convert_element(
         | EId::Polygon
         | EId::Path => {
             if let Some(path) = shapes::convert(node, state) {
-                convert_path(node, path, state, cache, parent);
+                convert_path(node, path, state, cache, &mut parent.borrow_mut());
             }
         }
         EId::Image => {
-            image::convert(node, state, parent);
+            image::convert(node, state, &mut parent.borrow_mut());
         }
         EId::Text =>
         {
             #[cfg(feature = "text")]
             if !state.opt.fontdb.is_empty() {
-                text::convert(node, state, cache, parent);
+                text::convert(node, state, cache, &mut parent.borrow_mut());
             }
         }
         EId::Svg => {
             if node.parent_element().is_some() {
-                use_node::convert_svg(node, state, cache, parent);
+                use_node::convert_svg(node, state, cache, &mut parent.borrow_mut());
             } else {
                 // Skip root `svg`.
-                convert_children(node, state, cache, parent);
+                push_children(node, parent.clone(), node_stack);
             }
         }
         EId::G => {
-            convert_children(node, state, cache, parent);
+            push_children(node, parent.clone(), node_stack);
         }
         _ => {}
     }
