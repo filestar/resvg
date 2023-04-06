@@ -203,7 +203,7 @@ fn collect_args() -> Result<Args, pico_args::Error> {
 }
 
 fn parse_dpi(s: &str) -> Result<u32, String> {
-    let n: u32 = s.parse().map_err(|_| "invalid number")?;
+    let n: u32 = s.trim().parse().map_err(|_| "invalid number")?;
 
     if n >= 10 && n <= 4000 {
         Ok(n)
@@ -213,7 +213,7 @@ fn parse_dpi(s: &str) -> Result<u32, String> {
 }
 
 fn parse_font_size(s: &str) -> Result<u32, String> {
-    let n: u32 = s.parse().map_err(|_| "invalid number")?;
+    let n: u32 = s.trim().parse().map_err(|_| "invalid number")?;
 
     if n > 0 && n <= 192 {
         Ok(n)
@@ -251,7 +251,7 @@ fn parse_indent(s: &str) -> Result<xmlwriter::Indent, String> {
 }
 
 fn parse_length(s: &str) -> Result<u32, String> {
-    let n: u32 = s.parse().map_err(|_| "invalid length")?;
+    let n: u32 = s.trim().parse().map_err(|_| "invalid length")?;
 
     if n > 0 {
         Ok(n)

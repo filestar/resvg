@@ -29,11 +29,11 @@ jobs:
     #   run: cargo test --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.4.win-x86
+        name: usvg.0.27.5.win-x86
         path: target/i686-pc-windows-msvc/release/usvg.exe
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.4.win-x64
+        name: usvg.0.27.5.win-x64
         path: target/x86_64-pc-windows-msvc/release/usvg.exe
 
   build-macos:
@@ -54,9 +54,9 @@ jobs:
     #   run: cargo test --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.4.osx-arm64
+        name: usvg.0.27.5.osx-arm64
         path: target/aarch64-apple-darwin/release/usvg
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.4.osx-x64
+        name: usvg.0.27.5.osx-x64
         path: target/x86_64-apple-darwin/release/usvg
