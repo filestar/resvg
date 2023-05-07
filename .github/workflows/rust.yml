@@ -37,23 +37,23 @@ jobs:
     #   run: cargo build --release --verbose --target aarch64-pc-windows-msvc
     - uses: actions/upload-artifact@v3
       with:
-        name: resvg.${env.RESVG_VERSION}.win-x86
+        name: resvg.${{env.RESVG_VERSION}}.win-x86
         path: target/i686-pc-windows-msvc/release/resvg.exe
     # - uses: actions/upload-artifact@v3
     #   with:
-    #     name: resvg.${env.RESVG_VERSION}.win-x64
+    #     name: resvg.${{env.RESVG_VERSION}}.win-x64
     #     path: target/x86_64-pc-windows-msvc/release/resvg.exe
     # - uses: actions/upload-artifact@v3
     #   with:
-    #     name: resvg.${env.RESVG_VERSION}.win-arm64
+    #     name: resvg.${{env.RESVG_VERSION}}.win-arm64
     #     path: target/x86_64-pc-windows-msvc/release/resvg.exe
     # - uses: actions/upload-artifact@v3
     #   with:
-    #     name: usvg.${env.RESVG_VERSION}.win-x86
+    #     name: usvg.${{env.RESVG_VERSION}}.win-x86
     #     path: target/i686-pc-windows-msvc/release/usvg.exe
     # - uses: actions/upload-artifact@v3
     #   with:
-    #     name: usvg.${env.RESVG_VERSION}.win-x64
+    #     name: usvg.${{env.RESVG_VERSION}}.win-x64
     #     path: target/x86_64-pc-windows-msvc/release/usvg.exe
 
   # build-macos:
@@ -78,17 +78,17 @@ jobs:
   #   #   run: cargo test --verbose
   #   - uses: actions/upload-artifact@v3
   #     with:
-  #       name: resvg.${env.RESVG_VERSION}.osx-arm64
+  #       name: resvg.${{env.RESVG_VERSION}}.osx-arm64
   #       path: target/aarch64-apple-darwin/release/resvg
   #   - uses: actions/upload-artifact@v3
   #     with:
-  #       name: resvg.${env.RESVG_VERSION}.osx-x64
+  #       name: resvg.${{env.RESVG_VERSION}}.osx-x64
   #       path: target/x86_64-apple-darwin/release/resvg
   #   - uses: actions/upload-artifact@v3
   #     with:
-  #       name: usvg.${env.RESVG_VERSION}.osx-arm64
+  #       name: usvg.${{env.RESVG_VERSION}}.osx-arm64
   #       path: target/aarch64-apple-darwin/release/usvg
   #   - uses: actions/upload-artifact@v3
   #     with:
-  #       name: usvg.${env.RESVG_VERSION}.osx-x64
+  #       name: usvg.${{env.RESVG_VERSION}}.osx-x64
   #       path: target/x86_64-apple-darwin/release/usvg
