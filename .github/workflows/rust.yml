@@ -32,7 +32,7 @@ jobs:
     - name: Build usvg for win-x64
       working-directory: usvg
       run: cargo build --release --verbose --target x86_64-pc-windows-msvc
-      - name: Build usvg for win-arm64
+    - name: Build usvg for win-arm64
       working-directory: usvg
       run: cargo build --release --verbose --target aarch64-pc-windows-msvc
     - uses: actions/upload-artifact@v3
