@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use rosvgtree::{self, AttributeId as AId};
-use usvg_tree::{Color, Fill, FuzzyEq, Opacity, Paint, Stroke, StrokeMiterlimit, Units};
+use usvg_tree::{Color, Fill, FuzzyEq, Opacity, Paint, Stroke, StrokeMiterlimit, Units, VectorEffect};
 
 use crate::rosvgtree_ext::{FromValue, OpacityWrapper, SvgColorExt, SvgNodeExt2};
 use crate::{converter, paint_server, SvgNodeExt};
@@ -35,6 +35,19 @@ impl<'a, 'input: 'a> FromValue<'a, 'input> for usvg_tree::FillRule {
         match value {
             "nonzero" => Some(usvg_tree::FillRule::NonZero),
             "evenodd" => Some(usvg_tree::FillRule::EvenOdd),
+            _ => None,
+        }
+    }
+}
+
+impl<'a, 'input: 'a> FromValue<'a, 'input> for VectorEffect {
+    fn parse(_: rosvgtree::Node, _: rosvgtree::AttributeId, value: &str) -> Option<Self> {
+        match value {
+            "none" => Some(VectorEffect::None),
+            "non-scaling-stroke" => Some(VectorEffect::NonScalingStroke),
+            "non-scaling-size" => Some(VectorEffect::NonScalingSize),
+            "non-rotation" => Some(VectorEffect::NonRotation),
+            "fixed-position" => Some(VectorEffect::FixedPosition),
             _ => None,
         }
     }
@@ -126,6 +139,16 @@ pub(crate) fn resolve_stroke(
     };
 
     Some(stroke)
+}
+
+pub(crate) fn resolve_vector_effect(
+    node: rosvgtree::Node,
+) -> VectorEffect {
+    if let Some(n) = node.ancestors().find(|n| n.has_attribute(AId::VectorEffect)) {
+        n.find_and_parse_attribute(AId::VectorEffect).unwrap_or_default()
+    } else {
+        VectorEffect::default()
+    }
 }
 
 fn convert_paint(

@@ -611,6 +611,7 @@ fn convert_path(
     let has_bbox = path.has_bbox();
     let fill = crate::style::resolve_fill(node, has_bbox, state, cache);
     let stroke = crate::style::resolve_stroke(node, has_bbox, state, cache);
+    let vector_effect = crate::style::resolve_vector_effect(node);
     let mut visibility: Visibility = node
         .find_and_parse_attribute(AId::Visibility)
         .unwrap_or_default();
@@ -645,6 +646,7 @@ fn convert_path(
         stroke,
         paint_order,
         rendering_mode,
+        vector_effect,
         text_bbox: None,
         data: path,
     }));

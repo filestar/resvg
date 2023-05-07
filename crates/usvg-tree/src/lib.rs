@@ -130,6 +130,37 @@ impl std::str::FromStr for ShapeRendering {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+#[allow(missing_docs)]
+pub enum VectorEffect {
+    None,
+    NonScalingStroke,
+    NonScalingSize,
+    NonRotation,
+    FixedPosition,
+}
+
+impl Default for VectorEffect {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl std::str::FromStr for VectorEffect {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(VectorEffect::None),
+            "non-scaling-stroke" => Ok(VectorEffect::NonScalingStroke),
+            "non-scaling-size" => Ok(VectorEffect::NonScalingSize),
+            "non-rotation" => Ok(VectorEffect::NonRotation),
+            "fixed-position" => Ok(VectorEffect::FixedPosition),
+            _ => Err("invalid"),
+        }
+    }
+}
+
 /// A text rendering method.
 ///
 /// `text-rendering` attribute in the SVG.
@@ -881,6 +912,11 @@ pub struct Path {
     /// `shape-rendering` in SVG.
     pub rendering_mode: ShapeRendering,
 
+    /// Vector effect.
+    /// 
+    /// `vector-effect` in SVG.
+    pub vector_effect: VectorEffect,
+
     /// Contains a text bbox.
     ///
     /// Text bbox is different from path bbox. The later one contains a tight path bbox,
@@ -909,6 +945,7 @@ impl Default for Path {
             stroke: None,
             paint_order: PaintOrder::default(),
             rendering_mode: ShapeRendering::default(),
+            vector_effect: VectorEffect::default(),
             text_bbox: None,
             data: Rc::new(PathData::default()),
         }

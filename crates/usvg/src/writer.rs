@@ -1016,6 +1016,14 @@ fn write_path(
         ShapeRendering::GeometricPrecision => {}
     }
 
+    match path.vector_effect {
+        VectorEffect::None => {},
+        VectorEffect::NonScalingStroke => xml.write_svg_attribute(AId::VectorEffect, "non-scaling-stroke"),
+        VectorEffect::NonScalingSize => xml.write_svg_attribute(AId::VectorEffect, "non-scaling-size"),
+        VectorEffect::NonRotation => xml.write_svg_attribute(AId::VectorEffect, "non-rotation"),
+        VectorEffect::FixedPosition => xml.write_svg_attribute(AId::VectorEffect, "fixed-position"),
+    }
+
     if let Some(id) = clip_path {
         xml.write_func_iri(AId::ClipPath, id, opt);
     }

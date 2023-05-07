@@ -714,6 +714,7 @@ fn convert_span(
         stroke: span.stroke.clone(),
         paint_order: span.paint_order,
         rendering_mode: ShapeRendering::default(),
+        vector_effect: VectorEffect::None,
         text_bbox: bboxes_data.bbox().and_then(|r| r.to_rect()),
         data: Rc::new(path_data),
     };

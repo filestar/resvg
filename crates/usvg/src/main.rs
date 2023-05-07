@@ -103,6 +103,7 @@ OPTIONS:
                                     Smaller precision can lead to a malformed output in some cases
                                     [values: 2..8 (inclusive)] [default: 8]
   --quiet                           Disables warnings
+  --unforgiving                     Don't try to proceed in the face of parse errors
 
 ARGS:
   <in-svg>                          Input file
@@ -139,6 +140,7 @@ struct Args {
     transforms_precision: Option<u8>,
 
     quiet: bool,
+    forgiving: bool,
 
     input: String,
     output: String,
@@ -207,6 +209,7 @@ fn collect_args() -> Result<Args, pico_args::Error> {
         transforms_precision: input.opt_value_from_fn("--transforms-precision", parse_precision)?,
 
         quiet: input.contains("--quiet"),
+        forgiving: !input.contains("--unforgiving"),
 
         input: input.free_from_str()?,
         output: input.free_from_str()?,
@@ -412,6 +415,7 @@ fn process(args: Args) -> Result<(), String> {
         shape_rendering: args.shape_rendering,
         text_rendering: args.text_rendering,
         image_rendering: args.image_rendering,
+        forgiving: args.forgiving,
         default_size: usvg_tree::Size::new(args.default_width as f64, args.default_height as f64)
             .unwrap(),
         image_href_resolver: usvg_parser::ImageHrefResolver::default(),
