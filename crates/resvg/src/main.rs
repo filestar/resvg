@@ -77,6 +77,7 @@ fn process() -> Result<(), String> {
     let xml_tree = timed(args.perf, "XML Parsing", || {
         let xml_opt = usvg::roxmltree::ParsingOptions {
             allow_dtd: true,
+            forgiving: args.forgiving,
             ..Default::default()
         };
         usvg::roxmltree::Document::parse_with_options(svg_string, xml_opt)
@@ -226,6 +227,7 @@ OPTIONS:
 
   --perf                        Prints performance stats
   --quiet                       Disables warnings
+  --unforgiving                 Don't try to proceed in the face of parse errors
 
 ARGS:
   <in-svg>                      Input file
@@ -266,6 +268,7 @@ struct CliArgs {
 
     perf: bool,
     quiet: bool,
+    forgiving: bool,
 
     input: String,
     output: Option<String>,
@@ -329,6 +332,7 @@ fn collect_args() -> Result<CliArgs, pico_args::Error> {
 
         perf: input.contains("--perf"),
         quiet: input.contains("--quiet"),
+        forgiving: !input.contains("--unforgiving"),
 
         input: input.free_from_str()?,
         output: input.opt_free_from_str()?,
@@ -409,6 +413,7 @@ struct Args {
     export_area_drawing: bool,
     perf: bool,
     quiet: bool,
+    forgiving: bool,
     usvg: usvg::Options,
     fit_to: resvg::FitTo,
     background: Option<svgtypes::Color>,
@@ -509,6 +514,7 @@ fn parse_args() -> Result<Args, String> {
         image_rendering: args.image_rendering,
         default_size,
         image_href_resolver: usvg::ImageHrefResolver::default(),
+        forgiving: args.forgiving,
     };
 
     Ok(Args {
@@ -520,6 +526,7 @@ fn parse_args() -> Result<Args, String> {
         export_area_drawing: args.export_area_drawing,
         perf: args.perf,
         quiet: args.quiet,
+        forgiving: args.forgiving,
         usvg,
         fit_to,
         background: args.background,

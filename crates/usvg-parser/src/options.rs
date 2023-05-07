@@ -78,6 +78,9 @@ pub struct Options {
     ///
     /// Default: see type's documentation for details
     pub image_href_resolver: ImageHrefResolver,
+
+    /// Specifies whether or not to continue in the face of some parse errors.
+    pub forgiving: bool,
 }
 
 impl Default for Options {
@@ -94,6 +97,7 @@ impl Default for Options {
             image_rendering: ImageRendering::default(),
             default_size: Size::new(100.0, 100.0).unwrap(),
             image_href_resolver: ImageHrefResolver::default(),
+            forgiving: false,
         }
     }
 }

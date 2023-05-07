@@ -148,6 +148,7 @@ impl TreeParsing for usvg_tree::Tree {
     fn from_str(text: &str, opt: &Options) -> Result<Self, Error> {
         let xml_opt = roxmltree::ParsingOptions {
             allow_dtd: true,
+            forgiving: opt.forgiving,
             ..Default::default()
         };
 
