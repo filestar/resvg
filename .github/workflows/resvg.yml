@@ -1,0 +1,66 @@
+name: resvg
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RESVG_VERSION: 0.27.6
+
+jobs:
+  build-windows:
+    name: Build Windows targets
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Ensure all necessary targets are installed
+      run: rustup target add i686-pc-windows-msvc x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+    - name: Build resvg for win-x86
+      working-directory: resvg
+      run: cargo build --release --verbose --target i686-pc-windows-msvc
+    - name: Build resvg for win-x64
+      working-directory: resvg
+      run: cargo build --release --verbose --target x86_64-pc-windows-msvc
+    - name: Build resvg for win-arm64
+      working-directory: resvg
+      run: cargo build --release --verbose --target aarch64-pc-windows-msvc
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.${{env.RESVG_VERSION}}.win-x86
+        path: target/i686-pc-windows-msvc/release/resvg.exe
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.${{env.RESVG_VERSION}}.win-x64
+        path: target/x86_64-pc-windows-msvc/release/resvg.exe
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.${{env.RESVG_VERSION}}.win-arm64
+        path: target/aarch64-pc-windows-msvc/release/resvg.exe
+
+  build-macos:
+    name: Build macOS targets
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Ensure all necessary targets are installed
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    - name: Build resvg for osx-arm64
+      working-directory: resvg
+      run: cargo build --release --verbose --target aarch64-apple-darwin
+    - name: Build resvg for osx-x64
+      working-directory: resvg
+      run: cargo build --release --verbose --target x86_64-apple-darwin
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.${{env.RESVG_VERSION}}.osx-arm64
+        path: target/aarch64-apple-darwin/release/resvg
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.${{env.RESVG_VERSION}}.osx-x64
+        path: target/x86_64-apple-darwin/release/resvg
