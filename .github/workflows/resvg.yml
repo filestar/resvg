@@ -21,13 +21,13 @@ jobs:
     - name: Ensure all necessary targets are installed
       run: rustup target add i686-pc-windows-msvc x86_64-pc-windows-msvc aarch64-pc-windows-msvc
     - name: Build resvg for win-x86
-      working-directory: resvg
+      working-directory: crates/resvg
       run: cargo build --release --verbose --target i686-pc-windows-msvc
     - name: Build resvg for win-x64
-      working-directory: resvg
+      working-directory: crates/resvg
       run: cargo build --release --verbose --target x86_64-pc-windows-msvc
     - name: Build resvg for win-arm64
-      working-directory: resvg
+      working-directory: crates/resvg
       run: cargo build --release --verbose --target aarch64-pc-windows-msvc
     - uses: actions/upload-artifact@v3
       with:
@@ -51,10 +51,10 @@ jobs:
     - name: Ensure all necessary targets are installed
       run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
     - name: Build resvg for osx-arm64
-      working-directory: resvg
+      working-directory: crates/resvg
       run: cargo build --release --verbose --target aarch64-apple-darwin
     - name: Build resvg for osx-x64
-      working-directory: resvg
+      working-directory: crates/resvg
       run: cargo build --release --verbose --target x86_64-apple-darwin
     - uses: actions/upload-artifact@v3
       with:
