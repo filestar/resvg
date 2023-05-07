@@ -67,9 +67,7 @@ pub(crate) fn convert(tree: &Tree, opt: &XmlOptions) -> String {
     xml.write_svg_attribute(AId::Height, &tree.size.height());
     xml.write_viewbox(&tree.view_box);
     xml.write_attribute("xmlns", "http://www.w3.org/2000/svg");
-    if has_xlink(tree) {
-        xml.write_attribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-    }
+    xml.write_attribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
     xml.start_svg_element(EId::Defs);
     conv_defs(tree, opt, &mut xml);
@@ -939,30 +937,6 @@ impl XmlWriterExt for XmlWriter {
             enc.finish().unwrap();
         });
     }
-}
-
-fn has_xlink(tree: &Tree) -> bool {
-    for n in tree.root.descendants() {
-        match *n.borrow() {
-            NodeKind::Group(ref g) => {
-                for filter in &g.filters {
-                    if filter
-                        .primitives
-                        .iter()
-                        .any(|p| matches!(p.kind, filter::Kind::Image(_)))
-                    {
-                        return true;
-                    }
-                }
-            }
-            NodeKind::Image(_) => {
-                return true;
-            }
-            _ => {}
-        }
-    }
-
-    false
 }
 
 fn write_base_grad(g: &BaseGradient, xml: &mut XmlWriter, opt: &XmlOptions) {
