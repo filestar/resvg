@@ -7,6 +7,7 @@ use crate::{Attribute, AttributeId, Document, ElementId, NodeData, NodeId, NodeK
 const SVG_NS: &str = "http://www.w3.org/2000/svg";
 const XLINK_NS: &str = "http://www.w3.org/1999/xlink";
 const XML_NAMESPACE_NS: &str = "http://www.w3.org/XML/1998/namespace";
+const INKSCAPE_NS: &str = "http://www.inkscape.org/namespaces/inkscape";
 
 impl<'input> Document<'input> {
     /// Parses a [`Document`] from a string.
@@ -165,6 +166,8 @@ fn parse_xml_node<'input>(
     let node_id = parse_svg_element(node, parent_id, tag_name, style_sheet, ignore_ids, doc)?;
     if tag_name == ElementId::Text {
         crate::text::parse_svg_text_element(node, node_id, style_sheet, doc)?;
+    } else if tag_name == ElementId::Title {
+        crate::text::parse_svg_title_element(node, node_id, doc)?;
     } else if tag_name == ElementId::Use {
         parse_svg_use_element(node, origin, node_id, style_sheet, depth + 1, doc)?;
     } else {
@@ -195,7 +198,7 @@ pub(crate) fn parse_svg_element<'input>(
     // Copy presentational attributes first.
     for attr in xml_node.attributes() {
         match attr.namespace() {
-            None | Some(SVG_NS) | Some(XLINK_NS) | Some(XML_NAMESPACE_NS) => {}
+            None | Some(SVG_NS) | Some(XLINK_NS) | Some(XML_NAMESPACE_NS) | Some(INKSCAPE_NS) => {}
             _ => continue,
         }
 

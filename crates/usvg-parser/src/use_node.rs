@@ -213,10 +213,12 @@ fn clip_element(
         ..Path::default()
     }));
 
+    let title = node.title().map(ToOwned::to_owned);
     parent.append_kind(NodeKind::Group(Group {
         id: node.element_id().to_string(),
         transform,
         clip_path: Some(Rc::new(clip_path)),
+        title,
         ..Group::default()
     }))
 }

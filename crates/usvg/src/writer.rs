@@ -545,6 +545,21 @@ fn conv_defs(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
     }
 }
 
+fn conv_title(title: Option<&str>, xml: &mut XmlWriter) {
+    let Some(title) = title else {
+        return;
+    };
+
+    // TODO: this is quite inefficient.
+    let title = title
+        .replace("&", "&amp;")
+        .replace(">", "&gt;");
+
+    xml.start_svg_element(EId::Title);
+    xml.write_text(&title);
+    xml.end_element();
+}
+
 fn conv_elements(parent: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut XmlWriter) {
     for n in parent.children() {
         conv_element(&n, is_clip_path, opt, xml);
@@ -578,6 +593,8 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
 
             xml.write_transform(AId::Transform, img.transform, opt);
             xml.write_image_data(&img.kind);
+
+            conv_title(img.title.as_deref(), xml);
 
             xml.end_element();
         }
@@ -661,7 +678,9 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
                 );
             }
 
+            conv_title(g.title.as_deref(), xml);
             conv_elements(node, false, opt, xml);
+
 
             xml.end_element();
         }
@@ -1053,6 +1072,8 @@ fn write_path(
             buf.pop();
         }
     });
+
+    conv_title(path.title.as_deref(), xml);
 
     xml.end_element();
 }

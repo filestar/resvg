@@ -100,6 +100,7 @@ pub(crate) fn convert(
         .find_and_parse_attribute(AId::TextRendering)
         .unwrap_or(state.opt.text_rendering);
 
+    let title = text_node.title().map(ToOwned::to_owned);
     let text = Text {
         id: text_node.element_id().to_string(),
         transform: Transform::default(),
@@ -108,6 +109,7 @@ pub(crate) fn convert(
         rotate: rotate_list,
         writing_mode,
         chunks,
+        title,
     };
     parent.append_kind(NodeKind::Text(text));
 }
@@ -252,6 +254,9 @@ fn collect_text_chunks_impl(
             }
         }
 
+        let title = child.title()
+            .or_else(|| parent.title())
+            .map(ToOwned::to_owned);
         let span = TextSpan {
             start: 0,
             end: 0,
@@ -280,6 +285,7 @@ fn collect_text_chunks_impl(
             length_adjust: parent
                 .find_and_parse_attribute(AId::LengthAdjust)
                 .unwrap_or_default(),
+            title,
         };
 
         let mut is_new_span = true;

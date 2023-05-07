@@ -380,6 +380,14 @@ impl<'a, 'input: 'a> Node<'a, 'input> {
         }
     }
 
+    /// Returns the title of the node, if any.
+    pub fn title(&self) -> Option<&'a str> {
+        self.children()
+            .find(|child| child.tag_name() == Some(ElementId::Title))
+            .map(|child| child.text())
+            .or_else(|| self.attribute(AttributeId::Label))
+    }
+
     /// Returns a parent node.
     #[inline]
     pub fn parent(&self) -> Option<Self> {

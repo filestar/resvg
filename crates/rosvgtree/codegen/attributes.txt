@@ -74,6 +74,7 @@ k4
 kernelMatrix
 kernelUnitLength
 kerning
+label
 lengthAdjust
 letter-spacing
 lighting-color

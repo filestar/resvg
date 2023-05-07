@@ -487,6 +487,7 @@ pub(crate) fn convert_group(
             String::new()
         };
 
+        let title = node.title().map(ToOwned::to_owned);
         let g = parent.append_kind(NodeKind::Group(Group {
             id,
             transform,
@@ -498,6 +499,7 @@ pub(crate) fn convert_group(
             filters,
             filter_fill,
             filter_stroke,
+            title,
         }));
 
         GroupKind::Create(g)
@@ -638,6 +640,7 @@ fn convert_path(
         markers_group = Some(g);
     }
 
+    let title = node.title().map(ToOwned::to_owned);
     parent.append_kind(NodeKind::Path(Path {
         id: node.element_id().to_string(),
         transform: Default::default(),
@@ -649,6 +652,7 @@ fn convert_path(
         vector_effect,
         text_bbox: None,
         data: path,
+        title,
     }));
 
     if raw_paint_order.order[2] == svgtypes::PaintOrderKind::Markers {

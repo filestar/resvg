@@ -48,6 +48,7 @@ switch
 symbol
 text
 textPath
+title
 tref
 tspan
 use

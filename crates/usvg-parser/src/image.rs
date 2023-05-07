@@ -165,6 +165,7 @@ pub(crate) fn convert(
             .unwrap_or_default(),
     };
 
+    let title = node.title().map(ToOwned::to_owned);
     parent.append_kind(NodeKind::Image(Image {
         id: node.element_id().to_string(),
         transform: Default::default(),
@@ -172,6 +173,7 @@ pub(crate) fn convert(
         view_box,
         rendering_mode,
         kind,
+        title,
     }));
 
     Some(())

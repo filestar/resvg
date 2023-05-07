@@ -827,6 +827,9 @@ pub struct Group {
     ///
     /// Will be set only when filter actually has a `FilterInput::StrokePaint`.
     pub filter_stroke: Option<Paint>,
+
+    /// Title.
+    pub title: Option<String>,
 }
 
 impl Default for Group {
@@ -842,6 +845,7 @@ impl Default for Group {
             filters: Vec::new(),
             filter_fill: None,
             filter_stroke: None,
+            title: None,
         }
     }
 }
@@ -933,6 +937,9 @@ pub struct Path {
     ///
     /// All segments are in absolute coordinates.
     pub data: Rc<PathData>,
+
+    /// Title.
+    pub title: Option<String>,
 }
 
 impl Default for Path {
@@ -948,6 +955,7 @@ impl Default for Path {
             vector_effect: VectorEffect::default(),
             text_bbox: None,
             data: Rc::new(PathData::default()),
+            title: None,
         }
     }
 }
@@ -1007,6 +1015,9 @@ pub struct Image {
 
     /// Image data.
     pub kind: ImageKind,
+
+    /// Title.
+    pub title: Option<String>,
 }
 
 /// Alias for `rctree::Node<NodeKind>`.

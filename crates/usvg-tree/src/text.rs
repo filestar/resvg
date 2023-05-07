@@ -218,6 +218,8 @@ pub struct TextSpan {
     pub text_length: Option<f64>,
     /// A length adjust property.
     pub length_adjust: LengthAdjust,
+    /// Title.
+    pub title: Option<String>,
 }
 
 /// A text chunk anchor property.
@@ -335,4 +337,7 @@ pub struct Text {
 
     /// A list of text chunks.
     pub chunks: Vec<TextChunk>,
+
+    /// Title.
+    pub title: Option<String>,
 }

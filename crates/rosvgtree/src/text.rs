@@ -34,6 +34,22 @@ pub(crate) fn parse_svg_text_element<'input>(
     Ok(())
 }
 
+pub(crate) fn parse_svg_title_element<'input>(
+    parent: roxmltree::Node<'_, 'input>,
+    parent_id: NodeId,
+    doc: &mut Document<'input>,
+) -> Result<(), Error> {
+    for node in parent.children() {
+        if node.is_text() {
+            let text = trim_text(node.text().unwrap(), XmlSpace::Default);
+            doc.append(parent_id, NodeKind::Text(text));
+            continue;
+        }
+    }
+
+    Ok(())
+}
+
 fn parse_svg_text_element_impl<'input>(
     parent: roxmltree::Node<'_, 'input>,
     parent_id: NodeId,

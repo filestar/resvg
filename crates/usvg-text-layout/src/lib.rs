@@ -66,6 +66,7 @@ impl TextToPath for Text {
         let group = Node::new(NodeKind::Group(Group {
             id: self.id.clone(),
             transform: self.transform,
+            title: self.title.clone(),
             ..Group::default()
         }));
 
@@ -717,6 +718,7 @@ fn convert_span(
         vector_effect: VectorEffect::None,
         text_bbox: bboxes_data.bbox().and_then(|r| r.to_rect()),
         data: Rc::new(path_data),
+        title: span.title.clone(),
     };
 
     Some(path)

@@ -151,9 +151,11 @@ fn resolve(
         ts.translate(-r.x(), -r.y());
 
         // TODO: do not create a group when no clipPath
+        let title: Option<String> = shape_node.title().map(ToOwned::to_owned);
         let mut g_node = parent.append_kind(NodeKind::Group(Group {
             transform: ts,
             clip_path: clip_path.clone(),
+            title,
             ..Group::default()
         }));
 
