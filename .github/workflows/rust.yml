@@ -9,6 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RESVG_VERSION: 0.27.6
 
 jobs:
   build-windows:
@@ -19,6 +20,10 @@ jobs:
     - uses: actions/checkout@v2
     - name: Ensure all necessary targets are installed
       run: rustup target add i686-pc-windows-msvc x86_64-pc-windows-msvc
+    - name: Build resvg for win-x86
+      run: cargo build --release --verbose --target i686-pc-windows-msvc
+    - name: Build resvg for win-x64
+      run: cargo build --release --verbose --target x86_64-pc-windows-msvc
     - name: Build usvg for win-x86
       working-directory: usvg
       run: cargo build --release --verbose --target i686-pc-windows-msvc
@@ -29,11 +34,19 @@ jobs:
     #   run: cargo test --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.5.win-x86
+        name: resvg.$RESVG_VERSION.win-x86
+        path: target/i686-pc-windows-msvc/release/resvg.exe
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.$RESVG_VERSION.win-x64
+        path: target/x86_64-pc-windows-msvc/release/resvg.exe
+    - uses: actions/upload-artifact@v3
+      with:
+        name: usvg.$RESVG_VERSION.win-x86
         path: target/i686-pc-windows-msvc/release/usvg.exe
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.5.win-x64
+        name: usvg.$RESVG_VERSION.win-x64
         path: target/x86_64-pc-windows-msvc/release/usvg.exe
 
   build-macos:
@@ -44,6 +57,10 @@ jobs:
     - uses: actions/checkout@v2
     - name: Ensure all necessary targets are installed
       run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    - name: Build resvg for osx-arm64
+      run: cargo build --release --verbose --target aarch64-apple-darwin
+    - name: Build resvg for osx-x64
+      run: cargo build --release --verbose --target x86_64-apple-darwin
     - name: Build usvg for osx-arm64
       working-directory: usvg
       run: cargo build --release --verbose --target aarch64-apple-darwin
@@ -54,9 +71,17 @@ jobs:
     #   run: cargo test --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.5.osx-arm64
+        name: resvg.$RESVG_VERSION.osx-arm64
+        path: target/aarch64-apple-darwin/release/resvg
+    - uses: actions/upload-artifact@v3
+      with:
+        name: resvg.$RESVG_VERSION.osx-x64
+        path: target/x86_64-apple-darwin/release/resvg
+    - uses: actions/upload-artifact@v3
+      with:
+        name: usvg.$RESVG_VERSION.osx-arm64
         path: target/aarch64-apple-darwin/release/usvg
     - uses: actions/upload-artifact@v3
       with:
-        name: usvg.0.27.5.osx-x64
+        name: usvg.$RESVG_VERSION.osx-x64
         path: target/x86_64-apple-darwin/release/usvg
