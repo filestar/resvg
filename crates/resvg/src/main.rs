@@ -73,6 +73,7 @@ fn process() -> Result<(), String> {
 
     let svg_string = std::str::from_utf8(&svg_data)
         .map_err(|_| "provided data has not an UTF-8 encoding".to_string())?;
+    let svg_string = usvg::preprocess_text(svg_string, &args.usvg);
 
     let xml_tree = timed(args.perf, "XML Parsing", || {
         let xml_opt = usvg::roxmltree::ParsingOptions {
@@ -80,7 +81,7 @@ fn process() -> Result<(), String> {
             forgiving: args.forgiving,
             ..Default::default()
         };
-        usvg::roxmltree::Document::parse_with_options(svg_string, xml_opt)
+        usvg::roxmltree::Document::parse_with_options(&svg_string, xml_opt)
             .map_err(|e| e.to_string())
     })?;
 

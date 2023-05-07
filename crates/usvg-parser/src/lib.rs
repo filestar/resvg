@@ -37,6 +37,8 @@ mod text;
 mod units;
 mod use_node;
 
+use std::borrow::Cow;
+
 pub use crate::options::*;
 pub use image::ImageHrefResolver;
 pub use rosvgtree::{self, roxmltree};
@@ -129,6 +131,19 @@ pub trait TreeParsing: Sized {
     fn from_rosvgtree(doc: rosvgtree::Document, opt: &Options) -> Result<Self, Error>;
 }
 
+/// Preprocesses text to remove unwanted characters before parsing.
+pub fn preprocess_text<'a>(text: &'a str, opt: &Options) -> Cow<'a, str> {
+    if opt.forgiving {
+        let processed_text = text.replace("\0", "");
+        if processed_text.len() != text.len() {
+            log::warn!("Found one or more invalid characters in input.");
+        }
+        Cow::Owned(processed_text)
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
 impl TreeParsing for usvg_tree::Tree {
     /// Parses `Tree` from an SVG data.
     ///
@@ -146,6 +161,8 @@ impl TreeParsing for usvg_tree::Tree {
 
     /// Parses `Tree` from an SVG string.
     fn from_str(text: &str, opt: &Options) -> Result<Self, Error> {
+        let text = preprocess_text(text, opt);
+
         let xml_opt = roxmltree::ParsingOptions {
             allow_dtd: true,
             forgiving: opt.forgiving,
@@ -153,7 +170,7 @@ impl TreeParsing for usvg_tree::Tree {
         };
 
         let doc =
-            roxmltree::Document::parse_with_options(text, xml_opt).map_err(Error::ParsingFailed)?;
+            roxmltree::Document::parse_with_options(&text, xml_opt).map_err(Error::ParsingFailed)?;
 
         Self::from_xmltree(&doc, opt)
     }
