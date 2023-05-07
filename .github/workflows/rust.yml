@@ -19,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Ensure all necessary targets are installed
-      run: rustup target add i686-pc-windows-msvc x86_64-pc-windows-msvc
+      run: rustup target add i686-pc-windows-msvc x86_64-pc-windows-msvc aarch64-pc-windows-msvc
     - name: Build resvg for win-x86
       run: cargo build --release --verbose --target i686-pc-windows-msvc
     - name: Build resvg for win-x64
