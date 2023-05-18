@@ -1,6 +1,6 @@
 [package]
 name = "usvg-parser"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["Yevhenii Reizner <razrfalcon@gmail.com>"]
 keywords = ["svg"]
 license = "MPL-2.0"
@@ -16,10 +16,10 @@ workspace = "../.."
 [dependencies]
 data-url = "0.2" # for href parsing
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] } # SVGZ decoding
-imagesize = "0.11" # raster images size detection
+imagesize = "0.12" # raster images size detection
 kurbo = "0.9" # Bezier curves utils
 log = "0.4"
 rosvgtree = { path = "../rosvgtree", version = "0.3" }
 strict-num = "0.1"
 svgtypes = "0.11"
-usvg-tree = { path = "../usvg-tree", version = "0.32.0" }
+usvg-tree = { path = "../usvg-tree", version = "0.33.0" }

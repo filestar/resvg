@@ -5,6 +5,8 @@ use usvg::{fontdb, TreeParsing, TreeTextToPath};
 #[rustfmt::skip]
 mod render;
 
+mod extra;
+
 const IMAGE_SIZE: u32 = 300;
 
 static GLOBAL_FONTDB: Lazy<std::sync::Mutex<fontdb::Database>> = Lazy::new(|| {
@@ -23,7 +25,12 @@ pub fn render(name: &str) -> usize {
     let png_path = format!("tests/{}.png", name);
 
     let mut opt = usvg::Options::default();
-    opt.resources_dir = Some(std::path::PathBuf::from(&svg_path).parent().unwrap().to_owned());
+    opt.resources_dir = Some(
+        std::path::PathBuf::from(&svg_path)
+            .parent()
+            .unwrap()
+            .to_owned(),
+    );
 
     let tree = {
         let svg_data = std::fs::read(&svg_path).unwrap();
@@ -33,16 +40,16 @@ pub fn render(name: &str) -> usize {
         tree
     };
 
-    let fit_to = resvg::FitTo::Width(IMAGE_SIZE);
-    let size = fit_to.fit_to(tree.size.to_screen_size()).unwrap();
+    let rtree = resvg::Tree::from_usvg(&tree);
+    let size = resvg::IntSize::from_usvg(rtree.size)
+        .scale_to_width(IMAGE_SIZE)
+        .unwrap();
     let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
-    resvg::render(
-        &tree,
-        fit_to,
-        tiny_skia::Transform::default(),
-        pixmap.as_mut(),
-    )
-    .unwrap();
+    let render_ts = tiny_skia::Transform::from_scale(
+        size.width() as f32 / tree.size.width() as f32,
+        size.height() as f32 / tree.size.height() as f32,
+    );
+    rtree.render(render_ts, &mut pixmap.as_mut());
 
     // pixmap.save_png(&format!("tests/{}.png", name)).unwrap();
 
@@ -70,6 +77,58 @@ pub fn render(name: &str) -> usize {
     // }
 
     pixels_d
+}
+
+pub fn render_extra_with_scale(name: &str, scale: f32) -> usize {
+    let svg_path = format!("tests/{}.svg", name);
+    let png_path = format!("tests/{}.png", name);
+
+    let opt = usvg::Options::default();
+
+    let tree = {
+        let svg_data = std::fs::read(&svg_path).unwrap();
+        usvg::Tree::from_data(&svg_data, &opt).unwrap()
+    };
+    let rtree = resvg::Tree::from_usvg(&tree);
+
+    let size = resvg::IntSize::from_usvg(rtree.size)
+        .scale_by(scale as f64)
+        .unwrap();
+    let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
+
+    let render_ts = tiny_skia::Transform::from_scale(scale, scale);
+    rtree.render(render_ts, &mut pixmap.as_mut());
+
+    // pixmap.save_png(&format!("tests/{}.png", name)).unwrap();
+
+    let mut rgba = pixmap.take();
+    svgfilters::demultiply_alpha(rgba.as_mut_slice().as_rgba_mut());
+
+    let expected_data = load_png(&png_path);
+    assert_eq!(expected_data.len(), rgba.len());
+
+    let mut pixels_d = 0;
+    for (a, b) in expected_data
+        .as_slice()
+        .as_rgba()
+        .iter()
+        .zip(rgba.as_rgba())
+    {
+        if is_pix_diff(*a, *b) {
+            pixels_d += 1;
+        }
+    }
+
+    // Save diff if needed.
+    // if pixels_d != 0 {
+    //     gen_diff(&name, &expected_data, rgba.as_slice()).unwrap();
+    // }
+
+    pixels_d
+}
+
+pub fn render_extra(name: &str) -> usize {
+    render_extra_with_scale(name, 1.0)
 }
 
 fn load_png(path: &str) -> Vec<u8> {
