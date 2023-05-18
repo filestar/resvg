@@ -9,7 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RESVG_VERSION: 0.32.2
+  RESVG_VERSION: 0.33.0
 
 jobs:
   build-windows:

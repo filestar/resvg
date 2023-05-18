@@ -1016,6 +1016,8 @@ fn apply_image(
                 view_box,
                 rendering_mode: fe.rendering_mode,
                 kind: kind.clone(),
+                // Title shouldn't matter here because we are just rendering anyway.
+                title: None,
             };
 
             let mut children = Vec::new();
