@@ -192,6 +192,11 @@ fn resolve_svg_size(svg: &rosvgtree::Node, opt: &Options) -> (Result<Size, Error
         )
     };
 
+    let size = if opt.forgiving {
+        size.or_else(|| Size::new(1.0, 1.0))
+    } else {
+        size
+    };
     (size.ok_or(Error::InvalidSize), restore_viewbox)
 }
 
