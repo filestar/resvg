@@ -57,10 +57,7 @@ pub trait TextToPath {
 
 impl TextToPath for Text {
     fn convert(&self, fontdb: &fontdb::Database, absolute_ts: Transform) -> Option<Node> {
-        let (new_paths, bbox) = text_to_paths(self, fontdb, absolute_ts);
-        if new_paths.is_empty() {
-            return None;
-        }
+        let (new_paths, bbox) = text_to_paths(self, fontdb, absolute_ts)?;
 
         // Create a group will all paths that was created during text-to-path conversion.
         let group = Node::new(NodeKind::Group(Group {
@@ -100,7 +97,7 @@ fn convert_text(root: Node, fontdb: &fontdb::Database) {
         let mut new_node = None;
         if let NodeKind::Text(ref text) = *node.borrow() {
             let mut absolute_ts = node.parent().unwrap().abs_transform();
-            absolute_ts.append(&text.transform);
+            absolute_ts = absolute_ts.pre_concat(text.transform);
             new_node = text.convert(fontdb, absolute_ts);
         }
 
@@ -114,7 +111,7 @@ fn convert_text(root: Node, fontdb: &fontdb::Database) {
 
 trait DatabaseExt {
     fn load_font(&self, id: ID) -> Option<ResolvedFont>;
-    fn outline(&self, id: ID, glyph_id: GlyphId) -> Option<PathData>;
+    fn outline(&self, id: ID, glyph_id: GlyphId) -> Option<tiny_skia_path::Path>;
     fn has_char(&self, id: ID, c: char) -> bool;
 }
 
@@ -193,15 +190,15 @@ impl DatabaseExt for Database {
     }
 
     #[inline(never)]
-    fn outline(&self, id: ID, glyph_id: GlyphId) -> Option<PathData> {
-        self.with_face_data(id, |data, face_index| -> Option<PathData> {
+    fn outline(&self, id: ID, glyph_id: GlyphId) -> Option<tiny_skia_path::Path> {
+        self.with_face_data(id, |data, face_index| -> Option<tiny_skia_path::Path> {
             let font = ttf_parser::Face::parse(data, face_index).ok()?;
 
             let mut builder = PathBuilder {
-                path: PathData::new(),
+                builder: tiny_skia_path::PathBuilder::new(),
             };
             font.outline_glyph(glyph_id, &mut builder)?;
-            Some(builder.path)
+            builder.builder.finish()
         })?
     }
 
@@ -242,56 +239,56 @@ struct ResolvedFont {
 
 impl ResolvedFont {
     #[inline]
-    fn scale(&self, font_size: f64) -> f64 {
-        font_size / self.units_per_em.get() as f64
+    fn scale(&self, font_size: f32) -> f32 {
+        font_size / self.units_per_em.get() as f32
     }
 
     #[inline]
-    fn ascent(&self, font_size: f64) -> f64 {
-        self.ascent as f64 * self.scale(font_size)
+    fn ascent(&self, font_size: f32) -> f32 {
+        self.ascent as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn descent(&self, font_size: f64) -> f64 {
-        self.descent as f64 * self.scale(font_size)
+    fn descent(&self, font_size: f32) -> f32 {
+        self.descent as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn height(&self, font_size: f64) -> f64 {
+    fn height(&self, font_size: f32) -> f32 {
         self.ascent(font_size) - self.descent(font_size)
     }
 
     #[inline]
-    fn x_height(&self, font_size: f64) -> f64 {
-        self.x_height.get() as f64 * self.scale(font_size)
+    fn x_height(&self, font_size: f32) -> f32 {
+        self.x_height.get() as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn underline_position(&self, font_size: f64) -> f64 {
-        self.underline_position as f64 * self.scale(font_size)
+    fn underline_position(&self, font_size: f32) -> f32 {
+        self.underline_position as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn underline_thickness(&self, font_size: f64) -> f64 {
-        self.underline_thickness.get() as f64 * self.scale(font_size)
+    fn underline_thickness(&self, font_size: f32) -> f32 {
+        self.underline_thickness.get() as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn line_through_position(&self, font_size: f64) -> f64 {
-        self.line_through_position as f64 * self.scale(font_size)
+    fn line_through_position(&self, font_size: f32) -> f32 {
+        self.line_through_position as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn subscript_offset(&self, font_size: f64) -> f64 {
-        self.subscript_offset as f64 * self.scale(font_size)
+    fn subscript_offset(&self, font_size: f32) -> f32 {
+        self.subscript_offset as f32 * self.scale(font_size)
     }
 
     #[inline]
-    fn superscript_offset(&self, font_size: f64) -> f64 {
-        self.superscript_offset as f64 * self.scale(font_size)
+    fn superscript_offset(&self, font_size: f32) -> f32 {
+        self.superscript_offset as f32 * self.scale(font_size)
     }
 
-    fn dominant_baseline_shift(&self, baseline: DominantBaseline, font_size: f64) -> f64 {
+    fn dominant_baseline_shift(&self, baseline: DominantBaseline, font_size: f32) -> f32 {
         let alignment = match baseline {
             DominantBaseline::Auto => AlignmentBaseline::Auto,
             DominantBaseline::UseScript => AlignmentBaseline::Auto, // unsupported
@@ -339,7 +336,7 @@ impl ResolvedFont {
     //
     // But that's not all! SVG 2 and CSS Inline Layout 3 did a baseline handling overhaul,
     // and it's far more complex now. Not sure if anyone actually supports it.
-    fn alignment_baseline_shift(&self, alignment: AlignmentBaseline, font_size: f64) -> f64 {
+    fn alignment_baseline_shift(&self, alignment: AlignmentBaseline, font_size: f32) -> f32 {
         match alignment {
             AlignmentBaseline::Auto => 0.0,
             AlignmentBaseline::Baseline => 0.0,
@@ -360,31 +357,28 @@ impl ResolvedFont {
 }
 
 struct PathBuilder {
-    path: PathData,
+    builder: tiny_skia_path::PathBuilder,
 }
 
 impl ttf_parser::OutlineBuilder for PathBuilder {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.path.push_move_to(x as f64, y as f64);
+        self.builder.move_to(x, y);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.path.push_line_to(x as f64, y as f64);
+        self.builder.line_to(x, y);
     }
 
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
-        self.path
-            .push_quad_to(x1 as f64, y1 as f64, x as f64, y as f64);
+        self.builder.quad_to(x1, y1, x, y);
     }
 
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
-        self.path.push_curve_to(
-            x1 as f64, y1 as f64, x2 as f64, y2 as f64, x as f64, y as f64,
-        );
+        self.builder.cubic_to(x1, y1, x2, y2, x, y);
     }
 
     fn close(&mut self) {
-        self.path.push_close_path();
+        self.builder.close();
     }
 }
 
@@ -443,7 +437,7 @@ fn span_contains(span: &TextSpan, byte_offset: ByteIndex) -> bool {
 // For now, resvg simply tries to match Chrome's output and not the mythical SVG spec output.
 //
 // See `alignment_baseline_shift` method comment for more details.
-fn resolve_baseline(span: &TextSpan, font: &ResolvedFont, writing_mode: WritingMode) -> f64 {
+fn resolve_baseline(span: &TextSpan, font: &ResolvedFont, writing_mode: WritingMode) -> f32 {
     let mut shift = -resolve_baseline_shift(&span.baseline_shift, font, span.font_size.get());
 
     // TODO: support vertical layout as well
@@ -466,7 +460,7 @@ fn text_to_paths(
     text_node: &Text,
     fontdb: &fontdb::Database,
     abs_ts: Transform,
-) -> (Vec<Path>, PathBbox) {
+) -> Option<(Vec<Path>, Rect)> {
     let mut fonts_cache: FontsCache = HashMap::new();
     for chunk in &text_node.chunks {
         for span in &chunk.spans {
@@ -478,7 +472,7 @@ fn text_to_paths(
         }
     }
 
-    let mut bbox = PathBbox::new_bbox();
+    let mut bbox = BBox::default();
     let mut char_offset = 0;
     let mut last_x = 0.0;
     let mut last_y = 0.0;
@@ -513,7 +507,7 @@ fn text_to_paths(
         let mut text_ts = Transform::default();
         if text_node.writing_mode == WritingMode::TopToBottom {
             if let TextFlow::Linear = chunk.text_flow {
-                text_ts.rotate_at(90.0, x, y);
+                text_ts = text_ts.pre_rotate_at(90.0, x, y);
             }
         }
 
@@ -526,14 +520,14 @@ fn text_to_paths(
             let decoration_spans = collect_decoration_spans(span, &clusters);
 
             let mut span_ts = text_ts;
-            span_ts.translate(x, y);
+            span_ts = span_ts.pre_translate(x, y);
             if let TextFlow::Linear = chunk.text_flow {
                 let shift = resolve_baseline(span, font, text_node.writing_mode);
 
                 // In case of a horizontal flow, shift transform and not clusters,
                 // because clusters can be rotated and an additional shift will lead
                 // to invalid results.
-                span_ts.translate(0.0, shift);
+                span_ts = span_ts.pre_translate(0.0, shift);
             }
 
             if let Some(decoration) = span.decoration.underline.clone() {
@@ -546,14 +540,12 @@ fn text_to_paths(
                     WritingMode::TopToBottom => font.height(span.font_size.get()) / 2.0,
                 };
 
-                let path =
-                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts);
-
-                if let Some(r) = path.data.bbox() {
-                    bbox = bbox.expand(r);
+                if let Some(path) =
+                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts)
+                {
+                    bbox = bbox.expand(path.data.bounds());
+                    new_paths.push(path);
                 }
-
-                new_paths.push(path);
             }
 
             if let Some(decoration) = span.decoration.overline.clone() {
@@ -562,20 +554,18 @@ fn text_to_paths(
                     WritingMode::TopToBottom => -font.height(span.font_size.get()) / 2.0,
                 };
 
-                let path =
-                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts);
-
-                if let Some(r) = path.data.bbox() {
-                    bbox = bbox.expand(r);
+                if let Some(path) =
+                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts)
+                {
+                    bbox = bbox.expand(path.data.bounds());
+                    new_paths.push(path);
                 }
-
-                new_paths.push(path);
             }
 
-            if let Some(path) = convert_span(span, &mut clusters, &span_ts) {
+            if let Some(path) = convert_span(span, &mut clusters, span_ts) {
                 // Use `text_bbox` here and not `path.data.bbox()`.
                 if let Some(r) = path.text_bbox {
-                    bbox = bbox.expand(r.to_path_bbox());
+                    bbox = bbox.expand(r);
                 }
 
                 new_paths.push(path);
@@ -587,14 +577,12 @@ fn text_to_paths(
                     WritingMode::TopToBottom => 0.0,
                 };
 
-                let path =
-                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts);
-
-                if let Some(r) = path.data.bbox() {
-                    bbox = bbox.expand(r);
+                if let Some(path) =
+                    convert_decoration(offset, span, font, decoration, &decoration_spans, span_ts)
+                {
+                    bbox = bbox.expand(path.data.bounds());
+                    new_paths.push(path);
                 }
-
-                new_paths.push(path);
             }
         }
 
@@ -610,7 +598,8 @@ fn text_to_paths(
         last_y = y + curr_pos.1;
     }
 
-    (new_paths, bbox)
+    let bbox = bbox.to_rect()?;
+    Some((new_paths, bbox))
 }
 
 fn resolve_font(font: &Font, fontdb: &fontdb::Database) -> Option<ResolvedFont> {
@@ -665,10 +654,10 @@ fn resolve_font(font: &Font, fontdb: &fontdb::Database) -> Option<ResolvedFont> 
 fn convert_span(
     span: &TextSpan,
     clusters: &mut [OutlinedCluster],
-    text_ts: &Transform,
+    text_ts: Transform,
 ) -> Option<Path> {
-    let mut path_data = PathData::new();
-    let mut bboxes_data = PathData::new();
+    let mut path_builder = tiny_skia_path::PathBuilder::new();
+    let mut bboxes_builder = tiny_skia_path::PathBuilder::new();
 
     for cluster in clusters {
         if !cluster.visible {
@@ -676,26 +665,36 @@ fn convert_span(
         }
 
         if span_contains(span, cluster.byte_idx) {
-            let mut path = std::mem::replace(&mut cluster.path, PathData::new());
-            path.transform(cluster.transform);
+            let path = cluster
+                .path
+                .take()
+                .and_then(|p| p.transform(cluster.transform));
 
-            path_data.push_path(&path);
+            if let Some(path) = path {
+                path_builder.push_path(&path);
+            }
+
+            // TODO: make sure `advance` is never negative beforehand.
+            let mut advance = cluster.advance;
+            if advance <= 0.0 {
+                advance = 1.0;
+            }
 
             // We have to calculate text bbox using font metrics and not glyph shape.
-            if let Some(r) = Rect::new(0.0, -cluster.ascent, cluster.advance, cluster.height()) {
-                if let Some(r) = r.transform(&cluster.transform) {
-                    bboxes_data.push_rect(r);
+            if let Some(r) = NonZeroRect::from_xywh(0.0, -cluster.ascent, advance, cluster.height())
+            {
+                if let Some(r) = r.transform(cluster.transform) {
+                    bboxes_builder.push_rect(r.to_rect());
                 }
             }
         }
     }
 
-    if path_data.is_empty() {
-        return None;
-    }
+    let mut path = path_builder.finish()?;
+    path = path.transform(text_ts)?;
 
-    path_data.transform(*text_ts);
-    bboxes_data.transform(*text_ts);
+    let mut bboxes = bboxes_builder.finish()?;
+    bboxes = bboxes.transform(text_ts)?;
 
     let mut fill = span.fill.clone();
     if let Some(ref mut fill) = fill {
@@ -716,8 +715,8 @@ fn convert_span(
         paint_order: span.paint_order,
         rendering_mode: ShapeRendering::default(),
         vector_effect: VectorEffect::None,
-        text_bbox: bboxes_data.bbox().and_then(|r| r.to_rect()),
-        data: Rc::new(path_data),
+        text_bbox: Some(bboxes.bounds().to_non_zero_rect()?),
+        data: Rc::new(path),
         title: span.title.clone(),
     };
 
@@ -758,20 +757,20 @@ fn collect_decoration_spans(span: &TextSpan, clusters: &[OutlinedCluster]) -> Ve
 }
 
 fn convert_decoration(
-    dy: f64,
+    dy: f32,
     span: &TextSpan,
     font: &ResolvedFont,
     mut decoration: TextDecorationStyle,
     decoration_spans: &[DecorationSpan],
     transform: Transform,
-) -> Path {
+) -> Option<Path> {
     debug_assert!(!decoration_spans.is_empty());
 
     let thickness = font.underline_thickness(span.font_size.get());
 
-    let mut path = PathData::new();
+    let mut builder = tiny_skia_path::PathBuilder::new();
     for dec_span in decoration_spans {
-        let rect = match Rect::new(0.0, -thickness / 2.0, dec_span.width, thickness) {
+        let rect = match NonZeroRect::from_xywh(0.0, -thickness / 2.0, dec_span.width, thickness) {
             Some(v) => v,
             None => {
                 log::warn!("a decoration span has a malformed bbox");
@@ -779,29 +778,31 @@ fn convert_decoration(
             }
         };
 
-        let start_idx = path.len();
-        path.push_rect(rect);
+        let ts = dec_span.transform.pre_translate(0.0, dy);
 
-        let mut ts = dec_span.transform;
-        ts.translate(0.0, dy);
-        path.transform_from(start_idx, ts);
+        let mut path = tiny_skia_path::PathBuilder::from_rect(rect.to_rect());
+        path = match path.transform(ts) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        builder.push_path(&path);
     }
 
-    path.transform(transform);
+    let mut path_data = builder.finish()?;
+    path_data = path_data.transform(transform)?;
 
-    Path {
-        visibility: span.visibility,
-        fill: decoration.fill.take(),
-        stroke: decoration.stroke.take(),
-        data: Rc::new(path),
-        ..Path::default()
-    }
+    let mut path = Path::new(Rc::new(path_data));
+    path.visibility = span.visibility;
+    path.fill = decoration.fill.take();
+    path.stroke = decoration.stroke.take();
+    Some(path)
 }
 
 /// By the SVG spec, `tspan` doesn't have a bbox and uses the parent `text` bbox.
 /// Since we converted `text` and `tspan` to `path`, we have to update
 /// all linked paint servers (gradients and patterns) too.
-fn fix_obj_bounding_box(path: &mut Path, bbox: PathBbox) {
+fn fix_obj_bounding_box(path: &mut Path, bbox: Rect) {
     if let Some(ref mut fill) = path.fill {
         if let Some(new_paint) = paint_server_to_user_space_on_use(fill.paint.clone(), bbox) {
             fill.paint = new_paint;
@@ -820,7 +821,7 @@ fn fix_obj_bounding_box(path: &mut Path, bbox: PathBbox) {
 /// Creates a deep copy of a selected paint server and returns its ID.
 ///
 /// Returns `None` if a paint server already uses `UserSpaceOnUse`.
-fn paint_server_to_user_space_on_use(paint: Paint, bbox: PathBbox) -> Option<Paint> {
+fn paint_server_to_user_space_on_use(paint: Paint, bbox: Rect) -> Option<Paint> {
     if paint.units() != Some(Units::ObjectBoundingBox) {
         return None;
     }
@@ -830,12 +831,11 @@ fn paint_server_to_user_space_on_use(paint: Paint, bbox: PathBbox) -> Option<Pai
     // If not, the `convert` module will remove unused defs anyway.
 
     // Update id, transform and units.
-    let ts = Transform::from_bbox(bbox.to_rect()?);
+    let ts = Transform::from_bbox(bbox.to_non_zero_rect()?);
     let paint = match paint {
         Paint::Color(_) => paint,
         Paint::LinearGradient(ref lg) => {
-            let mut transform = lg.transform;
-            transform.prepend(&ts);
+            let transform = lg.transform.post_concat(ts);
             Paint::LinearGradient(Rc::new(LinearGradient {
                 id: String::new(),
                 x1: lg.x1,
@@ -851,8 +851,7 @@ fn paint_server_to_user_space_on_use(paint: Paint, bbox: PathBbox) -> Option<Pai
             }))
         }
         Paint::RadialGradient(ref rg) => {
-            let mut transform = rg.transform;
-            transform.prepend(&ts);
+            let transform = rg.transform.post_concat(ts);
             Paint::RadialGradient(Rc::new(RadialGradient {
                 id: String::new(),
                 cx: rg.cx,
@@ -869,8 +868,7 @@ fn paint_server_to_user_space_on_use(paint: Paint, bbox: PathBbox) -> Option<Pai
             }))
         }
         Paint::Pattern(ref patt) => {
-            let mut transform = patt.transform;
-            transform.prepend(&ts);
+            let transform = patt.transform.post_concat(ts);
             Paint::Pattern(Rc::new(Pattern {
                 id: String::new(),
                 units: Units::UserSpaceOnUse,
@@ -892,7 +890,7 @@ fn paint_server_to_user_space_on_use(paint: Paint, bbox: PathBbox) -> Option<Pai
 /// It doesn't have a height, since it depends on the Font metrics.
 #[derive(Clone, Copy)]
 struct DecorationSpan {
-    width: f64,
+    width: f32,
     transform: Transform,
 }
 
@@ -954,21 +952,21 @@ struct OutlinedCluster {
     /// Cluster's width.
     ///
     /// It's different from advance in that it's not affected by letter spacing and word spacing.
-    width: f64,
+    width: f32,
 
     /// An advance along the X axis.
     ///
     /// Can be negative.
-    advance: f64,
+    advance: f32,
 
     /// An ascent in SVG coordinates.
-    ascent: f64,
+    ascent: f32,
 
     /// A descent in SVG coordinates.
-    descent: f64,
+    descent: f32,
 
     /// A x-height in SVG coordinates.
-    x_height: f64,
+    x_height: f32,
 
     /// Indicates that this cluster was affected by the relative shift (via dx/dy attributes)
     /// during the text layouting. Which breaks the `text-decoration` line.
@@ -977,7 +975,7 @@ struct OutlinedCluster {
     has_relative_shift: bool,
 
     /// An actual outline.
-    path: PathData,
+    path: Option<tiny_skia_path::Path>,
 
     /// A cluster's transform that contains it's position, rotation, etc.
     transform: Transform,
@@ -989,7 +987,7 @@ struct OutlinedCluster {
 }
 
 impl OutlinedCluster {
-    fn height(&self) -> f64 {
+    fn height(&self) -> f32 {
         self.ascent - self.descent
     }
 }
@@ -1260,26 +1258,24 @@ fn shape_text_with_font(
 fn outline_cluster(
     glyphs: &[Glyph],
     text: &str,
-    font_size: f64,
+    font_size: f32,
     db: &fontdb::Database,
 ) -> OutlinedCluster {
     debug_assert!(!glyphs.is_empty());
 
-    let mut path = PathData::new();
+    let mut builder = tiny_skia_path::PathBuilder::new();
     let mut width = 0.0;
-    let mut x = 0.0;
+    let mut x: f32 = 0.0;
 
     for glyph in glyphs {
-        let mut outline = db.outline(glyph.font.id, glyph.id).unwrap_or_default();
-
         let sx = glyph.font.scale(font_size);
 
-        if !outline.is_empty() {
+        if let Some(outline) = db.outline(glyph.font.id, glyph.id) {
             // By default, glyphs are upside-down, so we have to mirror them.
-            let mut ts = Transform::new_scale(1.0, -1.0);
+            let mut ts = Transform::from_scale(1.0, -1.0);
 
             // Scale to font-size.
-            ts.scale(sx, sx);
+            ts = ts.pre_scale(sx, sx);
 
             // Apply offset.
             //
@@ -1287,16 +1283,16 @@ fn outline_cluster(
             // but the later one will have an offset from the "current position".
             // So we have to keep an advance.
             // TODO: should be done only inside a single text span
-            ts.translate(x + glyph.dx as f64, glyph.dy as f64);
+            ts = ts.pre_translate(x + glyph.dx as f32, glyph.dy as f32);
 
-            outline.transform(ts);
-
-            path.push_path(&outline);
+            if let Some(outline) = outline.transform(ts) {
+                builder.push_path(&outline);
+            }
         }
 
-        x += glyph.width as f64;
+        x += glyph.width as f32;
 
-        let glyph_width = glyph.width as f64 * sx;
+        let glyph_width = glyph.width as f32 * sx;
         if glyph_width > width {
             width = glyph_width;
         }
@@ -1313,7 +1309,7 @@ fn outline_cluster(
         descent: font.descent(font_size),
         x_height: font.x_height(font_size),
         has_relative_shift: false,
-        path,
+        path: builder.finish(),
         transform: Transform::default(),
         visible: true,
     }
@@ -1377,12 +1373,12 @@ fn resolve_clusters_positions(
     chunk: &TextChunk,
     char_offset: usize,
     pos_list: &[CharacterPosition],
-    rotate_list: &[f64],
+    rotate_list: &[f32],
     writing_mode: WritingMode,
     ts: Transform,
     fonts_cache: &FontsCache,
     clusters: &mut [OutlinedCluster],
-) -> (f64, f64) {
+) -> (f32, f32) {
     match chunk.text_flow {
         TextFlow::Linear => resolve_clusters_positions_horizontal(
             chunk,
@@ -1410,10 +1406,10 @@ fn resolve_clusters_positions_horizontal(
     chunk: &TextChunk,
     offset: usize,
     pos_list: &[CharacterPosition],
-    rotate_list: &[f64],
+    rotate_list: &[f32],
     writing_mode: WritingMode,
     clusters: &mut [OutlinedCluster],
-) -> (f64, f64) {
+) -> (f32, f32) {
     let mut x = process_anchor(chunk.anchor, clusters_length(clusters));
     let mut y = 0.0;
 
@@ -1430,11 +1426,11 @@ fn resolve_clusters_positions_horizontal(
             cluster.has_relative_shift = pos.dx.is_some() || pos.dy.is_some();
         }
 
-        cluster.transform.translate(x, y);
+        cluster.transform = cluster.transform.pre_translate(x, y);
 
         if let Some(angle) = rotate_list.get(cp).cloned() {
-            if !angle.is_fuzzy_zero() {
-                cluster.transform.rotate(angle);
+            if !angle.approx_zero_ulps(4) {
+                cluster.transform = cluster.transform.pre_rotate(angle);
                 cluster.has_relative_shift = true;
             }
         }
@@ -1450,12 +1446,12 @@ fn resolve_clusters_positions_path(
     char_offset: usize,
     path: &TextPath,
     pos_list: &[CharacterPosition],
-    rotate_list: &[f64],
+    rotate_list: &[f32],
     writing_mode: WritingMode,
     ts: Transform,
     fonts_cache: &FontsCache,
     clusters: &mut [OutlinedCluster],
-) -> (f64, f64) {
+) -> (f32, f32) {
     let mut last_x = 0.0;
     let mut last_y = 0.0;
 
@@ -1498,8 +1494,8 @@ fn resolve_clusters_positions_path(
         // Clusters should be rotated by the x-midpoint x baseline position.
         let half_width = cluster.width / 2.0;
         cluster.transform = Transform::default();
-        cluster.transform.translate(x - half_width, y);
-        cluster.transform.rotate_at(angle, half_width, 0.0);
+        cluster.transform = cluster.transform.pre_translate(x - half_width, y);
+        cluster.transform = cluster.transform.pre_rotate_at(angle, half_width, 0.0);
 
         let cp = char_offset + cluster.byte_idx.code_point_at(&chunk.text);
         if let Some(pos) = pos_list.get(cp) {
@@ -1518,19 +1514,21 @@ fn resolve_clusters_positions_path(
 
         // Shift only by `dy` since we already applied `dx`
         // during offset along the path calculation.
-        if !dy.is_fuzzy_zero() || !baseline_shift.is_fuzzy_zero() {
-            let shift = kurbo::Vec2::new(0.0, dy - baseline_shift);
-            cluster.transform.translate(shift.x, shift.y);
+        if !dy.approx_zero_ulps(4) || !baseline_shift.approx_zero_ulps(4) {
+            let shift = kurbo::Vec2::new(0.0, (dy - baseline_shift) as f64);
+            cluster.transform = cluster
+                .transform
+                .pre_translate(shift.x as f32, shift.y as f32);
         }
 
         if let Some(angle) = rotate_list.get(cp).cloned() {
-            if !angle.is_fuzzy_zero() {
-                cluster.transform.rotate(angle);
+            if !angle.approx_zero_ulps(4) {
+                cluster.transform = cluster.transform.pre_rotate(angle);
             }
         }
 
         // The possible `lengthAdjust` transform should be applied after text-on-path positioning.
-        cluster.transform.append(&orig_ts);
+        cluster.transform = cluster.transform.pre_concat(orig_ts);
 
         last_x = x + cluster.advance;
         last_y = y;
@@ -1539,11 +1537,11 @@ fn resolve_clusters_positions_path(
     (last_x, last_y)
 }
 
-fn clusters_length(clusters: &[OutlinedCluster]) -> f64 {
+fn clusters_length(clusters: &[OutlinedCluster]) -> f32 {
     clusters.iter().fold(0.0, |w, cluster| w + cluster.advance)
 }
 
-fn process_anchor(a: TextAnchor, text_width: f64) -> f64 {
+fn process_anchor(a: TextAnchor, text_width: f32) -> f32 {
     match a {
         TextAnchor::Start => 0.0, // Nothing.
         TextAnchor::Middle => -text_width / 2.0,
@@ -1552,22 +1550,20 @@ fn process_anchor(a: TextAnchor, text_width: f64) -> f64 {
 }
 
 struct PathNormal {
-    x: f64,
-    y: f64,
-    angle: f64,
+    x: f32,
+    y: f32,
+    angle: f32,
 }
 
 fn collect_normals(
     chunk: &TextChunk,
     clusters: &[OutlinedCluster],
-    path: &PathData,
+    path: &tiny_skia_path::Path,
     pos_list: &[CharacterPosition],
     char_offset: usize,
-    offset: f64,
+    offset: f32,
     ts: Transform,
 ) -> Vec<Option<PathNormal>> {
-    debug_assert!(!path.is_empty());
-
     let mut offsets = Vec::with_capacity(clusters.len());
     let mut normals = Vec::with_capacity(clusters.len());
     {
@@ -1589,43 +1585,59 @@ fn collect_normals(
                 normals.push(None);
             }
 
-            offsets.push(offset);
+            offsets.push(offset as f64);
             advance += cluster.advance;
         }
     }
 
-    let mut prev_mx = path.points()[0];
-    let mut prev_my = path.points()[1];
+    let mut prev_mx = path.points()[0].x;
+    let mut prev_my = path.points()[0].y;
     let mut prev_x = prev_mx;
     let mut prev_y = prev_my;
 
-    fn create_curve_from_line(px: f64, py: f64, x: f64, y: f64) -> kurbo::CubicBez {
-        let line = kurbo::Line::new(kurbo::Point::new(px, py), kurbo::Point::new(x, y));
+    fn create_curve_from_line(px: f32, py: f32, x: f32, y: f32) -> kurbo::CubicBez {
+        let line = kurbo::Line::new(
+            kurbo::Point::new(px as f64, py as f64),
+            kurbo::Point::new(x as f64, y as f64),
+        );
         let p1 = line.eval(0.33);
         let p2 = line.eval(0.66);
-        cubic_from_points(px, py, p1.x, p1.y, p2.x, p2.y, x, y)
+        kurbo::CubicBez {
+            p0: line.p0,
+            p1,
+            p2,
+            p3: line.p1,
+        }
     }
 
-    let mut length = 0.0;
+    let mut length: f64 = 0.0;
     for seg in path.segments() {
         let curve = match seg {
-            PathSegment::MoveTo { x, y } => {
-                prev_mx = x;
-                prev_my = y;
-                prev_x = x;
-                prev_y = y;
+            tiny_skia_path::PathSegment::MoveTo(p) => {
+                prev_mx = p.x;
+                prev_my = p.y;
+                prev_x = p.x;
+                prev_y = p.y;
                 continue;
             }
-            PathSegment::LineTo { x, y } => create_curve_from_line(prev_x, prev_y, x, y),
-            PathSegment::CurveTo {
-                x1,
-                y1,
-                x2,
-                y2,
-                x,
-                y,
-            } => cubic_from_points(prev_x, prev_y, x1, y1, x2, y2, x, y),
-            PathSegment::ClosePath => create_curve_from_line(prev_x, prev_y, prev_mx, prev_my),
+            tiny_skia_path::PathSegment::LineTo(p) => {
+                create_curve_from_line(prev_x, prev_y, p.x, p.y)
+            }
+            tiny_skia_path::PathSegment::QuadTo(p1, p) => kurbo::QuadBez {
+                p0: kurbo::Point::new(prev_x as f64, prev_y as f64),
+                p1: kurbo::Point::new(p1.x as f64, p1.y as f64),
+                p2: kurbo::Point::new(p.x as f64, p.y as f64),
+            }
+            .raise(),
+            tiny_skia_path::PathSegment::CubicTo(p1, p2, p) => kurbo::CubicBez {
+                p0: kurbo::Point::new(prev_x as f64, prev_y as f64),
+                p1: kurbo::Point::new(p1.x as f64, p1.y as f64),
+                p2: kurbo::Point::new(p2.x as f64, p2.y as f64),
+                p3: kurbo::Point::new(p.x as f64, p.y as f64),
+            },
+            tiny_skia_path::PathSegment::Close => {
+                create_curve_from_line(prev_x, prev_y, prev_mx, prev_my)
+            }
         };
 
         let arclen_accuracy = {
@@ -1638,11 +1650,11 @@ fn collect_normals(
             base_arclen_accuracy / (sx * sy).sqrt().max(1.0)
         };
 
-        let curve_len = curve.arclen(arclen_accuracy);
+        let curve_len = curve.arclen(arclen_accuracy as f64);
 
         for offset in &offsets[normals.len()..] {
             if *offset >= length && *offset <= length + curve_len {
-                let mut offset = curve.inv_arclen(offset - length, arclen_accuracy);
+                let mut offset = curve.inv_arclen(offset - length, arclen_accuracy as f64);
                 // some rounding error may occur, so we give offset a little tolerance
                 debug_assert!((-1.0e-3..=1.0 + 1.0e-3).contains(&offset));
                 offset = offset.min(1.0).max(0.0);
@@ -1653,9 +1665,9 @@ fn collect_normals(
                 let angle = d.atan2().to_degrees() - 90.0;
 
                 normals.push(Some(PathNormal {
-                    x: pos.x,
-                    y: pos.y,
-                    angle,
+                    x: pos.x as f32,
+                    y: pos.y as f32,
+                    angle: angle as f32,
                 }));
 
                 if normals.len() == offsets.len() {
@@ -1665,8 +1677,8 @@ fn collect_normals(
         }
 
         length += curve_len;
-        prev_x = curve.p3.x;
-        prev_y = curve.p3.y;
+        prev_x = curve.p3.x as f32;
+        prev_y = curve.p3.y as f32;
     }
 
     // If path ended and we still have unresolved normals - set them to `None`.
@@ -1685,7 +1697,7 @@ fn apply_letter_spacing(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
     if !chunk
         .spans
         .iter()
-        .any(|span| !span.letter_spacing.is_fuzzy_zero())
+        .any(|span| !span.letter_spacing.approx_zero_ulps(4))
     {
         return;
     }
@@ -1710,7 +1722,7 @@ fn apply_letter_spacing(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
                 if !cluster.advance.is_valid_length() {
                     cluster.width = 0.0;
                     cluster.advance = 0.0;
-                    cluster.path.clear();
+                    cluster.path = None;
                 }
             }
         }
@@ -1754,7 +1766,7 @@ fn apply_word_spacing(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
     if !chunk
         .spans
         .iter()
-        .any(|span| !span.word_spacing.is_fuzzy_zero())
+        .any(|span| !span.word_spacing.approx_zero_ulps(4))
     {
         return;
     }
@@ -1787,10 +1799,9 @@ fn apply_length_adjust(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
     let is_horizontal = matches!(chunk.text_flow, TextFlow::Linear);
 
     for span in &chunk.spans {
-        let target_width = if let Some(w) = span.text_length {
-            w
-        } else {
-            continue;
+        let target_width = match span.text_length {
+            Some(v) => v,
+            None => continue,
         };
 
         let mut width = 0.0;
@@ -1816,9 +1827,9 @@ fn apply_length_adjust(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
 
         if span.length_adjust == LengthAdjust::Spacing {
             let factor = if cluster_indexes.len() > 1 {
-                (target_width - width) / (cluster_indexes.len() - 1) as f64
+                (target_width - width) / (cluster_indexes.len() - 1) as f32
             } else {
-                0 as f64
+                0.0
             };
 
             for i in cluster_indexes {
@@ -1832,7 +1843,7 @@ fn apply_length_adjust(chunk: &TextChunk, clusters: &mut [OutlinedCluster]) {
             }
 
             for i in cluster_indexes {
-                clusters[i].transform.scale(factor, 1.0);
+                clusters[i].transform = clusters[i].transform.pre_scale(factor, 1.0);
 
                 // Technically just a hack to support the current text-on-path algorithm.
                 if !is_horizontal {
@@ -1859,10 +1870,13 @@ fn apply_writing_mode(writing_mode: WritingMode, clusters: &mut [OutlinedCluster
 
             // Rotate a cluster 90deg counter clockwise by the center.
             let mut ts = Transform::default();
-            ts.translate(cluster.width / 2.0, 0.0);
-            ts.rotate(-90.0);
-            ts.translate(-cluster.width / 2.0, -dy);
-            cluster.path.transform(ts);
+            ts = ts.pre_translate(cluster.width / 2.0, 0.0);
+            ts = ts.pre_rotate(-90.0);
+            ts = ts.pre_translate(-cluster.width / 2.0, -dy);
+
+            if let Some(path) = cluster.path.take() {
+                cluster.path = path.transform(ts);
+            }
 
             // Move "baseline" to the middle and make height equal to width.
             cluster.ascent = cluster.width / 2.0;
@@ -1871,12 +1885,12 @@ fn apply_writing_mode(writing_mode: WritingMode, clusters: &mut [OutlinedCluster
             // Could not find a spec that explains this,
             // but this is how other applications are shifting the "rotated" characters
             // in the top-to-bottom mode.
-            cluster.transform.translate(0.0, cluster.x_height / 2.0);
+            cluster.transform = cluster.transform.pre_translate(0.0, cluster.x_height / 2.0);
         }
     }
 }
 
-fn resolve_baseline_shift(baselines: &[BaselineShift], font: &ResolvedFont, font_size: f64) -> f64 {
+fn resolve_baseline_shift(baselines: &[BaselineShift], font: &ResolvedFont, font_size: f32) -> f32 {
     let mut shift = 0.0;
     for baseline in baselines.iter().rev() {
         match baseline {
@@ -1888,22 +1902,4 @@ fn resolve_baseline_shift(baselines: &[BaselineShift], font: &ResolvedFont, font
     }
 
     shift
-}
-
-fn cubic_from_points(
-    px: f64,
-    py: f64,
-    x1: f64,
-    y1: f64,
-    x2: f64,
-    y2: f64,
-    x: f64,
-    y: f64,
-) -> kurbo::CubicBez {
-    kurbo::CubicBez {
-        p0: kurbo::Point::new(px, py),
-        p1: kurbo::Point::new(x1, y1),
-        p2: kurbo::Point::new(x2, y2),
-        p3: kurbo::Point::new(x, y),
-    }
 }

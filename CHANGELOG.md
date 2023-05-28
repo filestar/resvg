@@ -8,6 +8,51 @@ This changelog also contains important changes in dependencies.
 
 ## [Unreleased]
 
+## [0.34.0] - 2023-05-27
+### Changed
+- `usvg` uses `tiny-skia` geometry primitives now, including the `Path` container.<br>
+  The main difference compared to the old `usvg` primitives
+  is that `tiny-skia` uses `f32` instead of `f64`.
+  So while in theory we could loose some precision, in practice, `f32` is used mainly
+  as a storage type and precise math operations are still done using `f64`.<br>
+  `tiny-skia` primitives are move robust, strict and have a nicer API.<br>
+  More importantly, this change reduces the peak memory usages for SVGs with large paths
+  (in terms of the number of segments).
+  And removes the need to convert `usvg::PathData` into `tiny-skia::Path` before rendering.
+  Which was just a useless reallocation.
+- All numbers are stored as `f32` instead of `f64` now.
+- Because we use `tiny-skia::Path` now, we allow _quadratic curves_ as well.
+  This includes `usvg` CLI output.
+- Because we allow _quadratic curves_ now, text might render slightly differently (better?).
+  This is because TrueType fonts contain only _quadratic curves_
+  and we were converting them to cubic before.
+- `usvg::Path` no longer implements `Default`. Use `usvg::Path::new` instead.
+- Replace `usvg::Rect` with `tiny_skia::NonZeroRect`.
+- Replace `usvg::PathBbox` with `tiny_skia::Rect`.
+- Unlike the old `usvg::PathBbox`, `tiny_skia::Rect` allows both width and height to be zero.
+  This is not an error.
+- `usvg::filter::Turbulence::base_frequency` was split into `base_frequency_x` and `base_frequency_y`.
+- `usvg::NodeExt::calculate_bbox` no longer includes stroke bbox.
+- (c-api) Use `float` instead of `double` everywhere.
+- The `svgfilters` crate was merged into `resvg`.
+- The `rosvgtree` crate was merged into `usvg-parser`.
+- `usvg::Group::filter_fill` moved to `usvg::filter::Filter::fill_paint`.
+- `usvg::Group::filter_stroke` moved to `usvg::filter::Filter::stroke_paint`.
+
+### Remove
+- `usvg::Point`. Use `tiny_skia::Point` instead.
+- `usvg::FuzzyEq`. Use `usvg::ApproxEqUlps` instead.
+- `usvg::FuzzyZero`. Use `usvg::ApproxZeroUlps` instead.
+- (c-api) `resvg_path_bbox`. Use `resvg_rect` instead.
+- `svgfilters` crate.
+- `rosvgtree` crate.
+
+### Fixed
+- Write `transform` on `clipPath` children in `usvg` SVG output.
+- Do not duplicate marker children IDs.
+  Previously, each element resolved for a marker would preserve its ID.
+  Affects only `usvg` SVG output and doesn't affect rendering.
+
 ## [0.33.0] - 2023-05-17
 ### Added
 - A new rendering algorithm.<br>
@@ -15,10 +60,10 @@ This changelog also contains important changes in dependencies.
   aka layers, we have to know the layer bounding box beforehand, which is ridiculously hard in SVG.<br>
   Previously, resvg would simply use the canvas size for all the layers.
   Meaning that to render a 10x10px layer on a 1000x1000px canvas, we would have to allocate and then blend
-  a 1000x1000px layer, which is just a waste of performance.<br>
-  Now, resvg is able to calculate the layer bounding box beforehand, which dramatically improves
+  a 1000x1000px layer, which is just a waste of CPU cycles.<br>
+  The new rendering algorithm is able to calculate layer bounding boxes, which dramatically improves
   performance when rendering a lot of tiny layers on a large canvas.<br>
-  Moreover, it makes performance more linear with canvas size increase.<br>
+  Moreover, it makes performance more linear with a canvas size increase.<br>
   The [paris-30k.svg](https://github.com/google/forma/blob/681e8bfd348caa61aab47437e7d857764c2ce522/assets/svgs/paris-30k.svg)
   sample from [google/forma](https://github.com/google/forma) is rendered _115 times_ faster on M1 Pro now.
   From ~33760ms down to ~290ms. 5269x3593px canvas.<br>
@@ -861,7 +906,8 @@ This changelog also contains important changes in dependencies.
 ### Fixed
 - `font-size` attribute inheritance during `use` resolving.
 
-[Unreleased]: https://github.com/RazrFalcon/resvg/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/RazrFalcon/resvg/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/RazrFalcon/resvg/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/RazrFalcon/resvg/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/RazrFalcon/resvg/compare/v0.31.1...v0.32.0
 [0.31.1]: https://github.com/RazrFalcon/resvg/compare/v0.31.0...v0.31.1

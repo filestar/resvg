@@ -2,23 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use rosvgtree::{self, AttributeId as AId};
 use svgtypes::{Length, LengthUnit as Unit};
 use usvg_tree::Units;
 
 use crate::converter;
-use crate::rosvgtree_ext::SvgNodeExt2;
+use crate::svgtree::{AId, SvgNode};
 
 #[inline(never)]
 pub(crate) fn convert_length(
     length: Length,
-    node: rosvgtree::Node,
+    node: SvgNode,
     aid: AId,
     object_units: Units,
     state: &converter::State,
-) -> f64 {
+) -> f32 {
     let dpi = state.opt.dpi;
-    let n = length.number;
+    let n = length.number as f32;
     match length.unit {
         Unit::None | Unit::Px => n,
         Unit::Em => n * resolve_font_size(node, state),
@@ -30,7 +29,7 @@ pub(crate) fn convert_length(
         Unit::Pc => n * dpi / 6.0,
         Unit::Percent => {
             if object_units == Units::ObjectBoundingBox {
-                length.number / 100.0
+                n / 100.0
             } else {
                 let view_box = state.view_box;
 
@@ -67,12 +66,8 @@ pub(crate) fn convert_length(
 }
 
 #[inline(never)]
-pub(crate) fn convert_list(
-    node: rosvgtree::Node,
-    aid: AId,
-    state: &converter::State,
-) -> Option<Vec<f64>> {
-    if let Some(text) = node.attribute(aid) {
+pub(crate) fn convert_list(node: SvgNode, aid: AId, state: &converter::State) -> Option<Vec<f32>> {
+    if let Some(text) = node.attribute::<&str>(aid) {
         let mut num_list = Vec::new();
         for length in svgtypes::LengthListParser::from(text).flatten() {
             num_list.push(convert_length(
@@ -90,19 +85,19 @@ pub(crate) fn convert_list(
     }
 }
 
-fn convert_percent(length: Length, base: f64) -> f64 {
-    base * length.number / 100.0
+fn convert_percent(length: Length, base: f32) -> f32 {
+    base * (length.number as f32) / 100.0
 }
 
 #[inline(never)]
-pub(crate) fn resolve_font_size(node: rosvgtree::Node, state: &converter::State) -> f64 {
+pub(crate) fn resolve_font_size(node: SvgNode, state: &converter::State) -> f32 {
     let nodes: Vec<_> = node.ancestors().collect();
     let mut font_size = state.opt.font_size;
     for n in nodes.iter().rev().skip(1) {
         // skip Root
-        if let Some(length) = n.parse_attribute::<Length>(AId::FontSize) {
+        if let Some(length) = n.attribute::<Length>(AId::FontSize) {
             let dpi = state.opt.dpi;
-            let n = length.number;
+            let n = length.number as f32;
             font_size = match length.unit {
                 Unit::None | Unit::Px => n,
                 Unit::Em => n * font_size,
@@ -115,7 +110,7 @@ pub(crate) fn resolve_font_size(node: rosvgtree::Node, state: &converter::State)
                 Unit::Percent => {
                     // If `font-size` has percent units that it's value
                     // is relative to the parent node `font-size`.
-                    length.number * font_size * 0.01
+                    length.number as f32 * font_size * 0.01
                 }
             }
         } else if let Some(name) = n.attribute(AId::FontSize) {
@@ -126,7 +121,7 @@ pub(crate) fn resolve_font_size(node: rosvgtree::Node, state: &converter::State)
     font_size
 }
 
-fn convert_named_font_size(name: &str, parent_font_size: f64) -> f64 {
+fn convert_named_font_size(name: &str, parent_font_size: f32) -> f32 {
     let factor = match name {
         "xx-small" => -3,
         "x-small" => -2,
@@ -144,5 +139,5 @@ fn convert_named_font_size(name: &str, parent_font_size: f64) -> f64 {
     };
 
     // 'On a computer screen a scaling factor of 1.2 is suggested between adjacent indexes.'
-    parent_font_size * 1.2f64.powi(factor)
+    parent_font_size * 1.2f32.powi(factor)
 }

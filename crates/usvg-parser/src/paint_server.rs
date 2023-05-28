@@ -5,13 +5,13 @@
 use std::rc::Rc;
 use std::str::FromStr;
 
-use rosvgtree::{self, AttributeId as AId, ElementId as EId};
-use strict_num::PositiveF64;
+use strict_num::PositiveF32;
 use svgtypes::{Length, LengthUnit as Unit};
 use usvg_tree::*;
 
-use crate::rosvgtree_ext::{OpacityWrapper, SvgColorExt, SvgNodeExt2};
-use crate::{converter, OptionLog, SvgNodeExt};
+use crate::converter::SvgColorExt;
+use crate::svgtree::{AId, EId, SvgNode};
+use crate::{converter, OptionLog};
 
 pub(crate) enum ServerOrColor {
     Server(Paint),
@@ -19,7 +19,7 @@ pub(crate) enum ServerOrColor {
 }
 
 pub(crate) fn convert(
-    node: rosvgtree::Node,
+    node: SvgNode,
     state: &converter::State,
     cache: &mut converter::Cache,
 ) -> Option<ServerOrColor> {
@@ -46,7 +46,7 @@ pub(crate) fn convert(
 }
 
 #[inline(never)]
-fn convert_linear(node: rosvgtree::Node, state: &converter::State) -> Option<ServerOrColor> {
+fn convert_linear(node: SvgNode, state: &converter::State) -> Option<ServerOrColor> {
     let stops = convert_stops(find_gradient_with_stops(node)?);
     if stops.len() < 2 {
         return stops_to_color(&stops);
@@ -54,7 +54,7 @@ fn convert_linear(node: rosvgtree::Node, state: &converter::State) -> Option<Ser
 
     let units = convert_units(node, AId::GradientUnits, Units::ObjectBoundingBox);
     let transform = resolve_attr(node, AId::GradientTransform)
-        .parse_attribute(AId::GradientTransform)
+        .attribute(AId::GradientTransform)
         .unwrap_or_default();
 
     let gradient = LinearGradient {
@@ -83,7 +83,7 @@ fn convert_linear(node: rosvgtree::Node, state: &converter::State) -> Option<Ser
 }
 
 #[inline(never)]
-fn convert_radial(node: rosvgtree::Node, state: &converter::State) -> Option<ServerOrColor> {
+fn convert_radial(node: SvgNode, state: &converter::State) -> Option<ServerOrColor> {
     let stops = convert_stops(find_gradient_with_stops(node)?);
     if stops.len() < 2 {
         return stops_to_color(&stops);
@@ -119,17 +119,17 @@ fn convert_radial(node: rosvgtree::Node, state: &converter::State) -> Option<Ser
         state,
         Length::new(50.0, Unit::Percent),
     );
-    let fx = resolve_number(node, AId::Fx, units, state, Length::new_number(cx));
-    let fy = resolve_number(node, AId::Fy, units, state, Length::new_number(cy));
+    let fx = resolve_number(node, AId::Fx, units, state, Length::new_number(cx as f64));
+    let fy = resolve_number(node, AId::Fy, units, state, Length::new_number(cy as f64));
     let transform = resolve_attr(node, AId::GradientTransform)
-        .parse_attribute(AId::GradientTransform)
+        .attribute(AId::GradientTransform)
         .unwrap_or_default();
 
     let gradient = RadialGradient {
         id: node.element_id().to_string(),
         cx,
         cy,
-        r: PositiveF64::new(r).unwrap(),
+        r: PositiveF32::new(r).unwrap(),
         fx,
         fy,
         base: BaseGradient {
@@ -147,7 +147,7 @@ fn convert_radial(node: rosvgtree::Node, state: &converter::State) -> Option<Ser
 
 #[inline(never)]
 fn convert_pattern(
-    node: rosvgtree::Node,
+    node: SvgNode,
     state: &converter::State,
     cache: &mut converter::Cache,
 ) -> Option<ServerOrColor> {
@@ -158,9 +158,7 @@ fn convert_pattern(
         let n2 = resolve_attr(node, AId::PreserveAspectRatio);
         n1.parse_viewbox().map(|vb| ViewBox {
             rect: vb,
-            aspect: n2
-                .parse_attribute(AId::PreserveAspectRatio)
-                .unwrap_or_default(),
+            aspect: n2.attribute(AId::PreserveAspectRatio).unwrap_or_default(),
         })
     };
 
@@ -168,10 +166,10 @@ fn convert_pattern(
     let content_units = convert_units(node, AId::PatternContentUnits, Units::UserSpaceOnUse);
 
     let transform = resolve_attr(node, AId::PatternTransform)
-        .parse_attribute(AId::PatternTransform)
+        .attribute(AId::PatternTransform)
         .unwrap_or_default();
 
-    let rect = Rect::new(
+    let rect = NonZeroRect::from_xywh(
         resolve_number(node, AId::X, units, state, Length::zero()),
         resolve_number(node, AId::Y, units, state, Length::zero()),
         resolve_number(node, AId::Width, units, state, Length::zero()),
@@ -203,19 +201,19 @@ fn convert_pattern(
     Some(ServerOrColor::Server(Paint::Pattern(Rc::new(patt))))
 }
 
-fn convert_spread_method(node: rosvgtree::Node) -> SpreadMethod {
+fn convert_spread_method(node: SvgNode) -> SpreadMethod {
     let node = resolve_attr(node, AId::SpreadMethod);
-    node.parse_attribute(AId::SpreadMethod).unwrap_or_default()
+    node.attribute(AId::SpreadMethod).unwrap_or_default()
 }
 
-pub(crate) fn convert_units(node: rosvgtree::Node, name: AId, def: Units) -> Units {
+pub(crate) fn convert_units(node: SvgNode, name: AId, def: Units) -> Units {
     let node = resolve_attr(node, name);
-    node.parse_attribute(name).unwrap_or(def)
+    node.attribute(name).unwrap_or(def)
 }
 
 fn find_gradient_with_stops<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
-) -> Option<rosvgtree::Node<'a, 'input>> {
+    node: SvgNode<'a, 'input>,
+) -> Option<SvgNode<'a, 'input>> {
     for link in node.href_iter() {
         if !link.tag_name().unwrap().is_gradient() {
             log::warn!(
@@ -235,8 +233,8 @@ fn find_gradient_with_stops<'a, 'input: 'a>(
 }
 
 fn find_pattern_with_children<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
-) -> Option<rosvgtree::Node<'a, 'input>> {
+    node: SvgNode<'a, 'input>,
+) -> Option<SvgNode<'a, 'input>> {
     for link in node.href_iter() {
         if link.tag_name() != Some(EId::Pattern) {
             log::warn!(
@@ -255,7 +253,7 @@ fn find_pattern_with_children<'a, 'input: 'a>(
     None
 }
 
-fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
+fn convert_stops(grad: SvgNode) -> Vec<Stop> {
     let mut stops = Vec::new();
 
     {
@@ -267,18 +265,18 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
             }
 
             // `number` can be either a number or a percentage.
-            let offset = stop.parse_attribute(AId::Offset).unwrap_or(prev_offset);
+            let offset = stop.attribute(AId::Offset).unwrap_or(prev_offset);
             let offset = match offset.unit {
                 Unit::None => offset.number,
                 Unit::Percent => offset.number / 100.0,
                 _ => prev_offset.number,
             };
-            let offset = crate::f64_bound(0.0, offset, 1.0);
             prev_offset = Length::new_number(offset);
+            let offset = crate::f32_bound(0.0, offset as f32, 1.0);
 
             let (color, opacity) = match stop.attribute(AId::StopColor) {
                 Some("currentColor") => stop
-                    .find_and_parse_attribute(AId::Color)
+                    .find_attribute(AId::Color)
                     .unwrap_or_else(svgtypes::Color::black),
                 Some(value) => {
                     if let Ok(c) = svgtypes::Color::from_str(value) {
@@ -293,8 +291,7 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
             .split_alpha();
 
             let stop_opacity = stop
-                .parse_attribute::<OpacityWrapper>(AId::StopOpacity)
-                .map(|v| v.0)
+                .attribute::<Opacity>(AId::StopOpacity)
                 .unwrap_or(Opacity::ONE);
             stops.push(Stop {
                 offset: StopOffset::new_clamped(offset),
@@ -319,7 +316,7 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
             let offset2 = stops[i + 1].offset.get();
             let offset3 = stops[i + 2].offset.get();
 
-            if offset1.fuzzy_eq(&offset2) && offset2.fuzzy_eq(&offset3) {
+            if offset1.approx_eq_ulps(&offset2, 4) && offset2.approx_eq_ulps(&offset3, 4) {
                 // Remove offset in the middle.
                 stops.remove(i + 1);
             } else {
@@ -345,8 +342,8 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
             let offset1 = stops[i + 0].offset.get();
             let offset2 = stops[i + 1].offset.get();
 
-            if offset1.is_fuzzy_zero() && offset2.is_fuzzy_zero() {
-                stops[i + 1].offset = StopOffset::new_clamped(offset1 + f64::EPSILON);
+            if offset1.approx_eq_ulps(&0.0, 4) && offset2.approx_eq_ulps(&0.0, 4) {
+                stops[i + 1].offset = StopOffset::new_clamped(offset1 + f32::EPSILON);
             }
 
             i += 1;
@@ -371,9 +368,9 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
             let offset2 = stops[i - 0].offset.get();
 
             // Next offset must be smaller then previous.
-            if offset1 > offset2 || offset1.fuzzy_eq(&offset2) {
+            if offset1 > offset2 || offset1.approx_eq_ulps(&offset2, 4) {
                 // Make previous offset a bit smaller.
-                let new_offset = offset1 - f64::EPSILON;
+                let new_offset = offset1 - f32::EPSILON;
                 stops[i - 1].offset = StopOffset::new_clamped(new_offset);
                 stops[i - 0].offset = StopOffset::new_clamped(offset1);
             }
@@ -387,19 +384,16 @@ fn convert_stops(grad: rosvgtree::Node) -> Vec<Stop> {
 
 #[inline(never)]
 pub(crate) fn resolve_number(
-    node: rosvgtree::Node,
+    node: SvgNode,
     name: AId,
     units: Units,
     state: &converter::State,
     def: Length,
-) -> f64 {
+) -> f32 {
     resolve_attr(node, name).convert_length(name, units, state, def)
 }
 
-fn resolve_attr<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
-    name: AId,
-) -> rosvgtree::Node<'a, 'input> {
+fn resolve_attr<'a, 'input: 'a>(node: SvgNode<'a, 'input>, name: AId) -> SvgNode<'a, 'input> {
     if node.has_attribute(name) {
         return node;
     }
@@ -413,10 +407,7 @@ fn resolve_attr<'a, 'input: 'a>(
     }
 }
 
-fn resolve_lg_attr<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
-    name: AId,
-) -> rosvgtree::Node<'a, 'input> {
+fn resolve_lg_attr<'a, 'input: 'a>(node: SvgNode<'a, 'input>, name: AId) -> SvgNode<'a, 'input> {
     for link in node.href_iter() {
         let tag_name = match link.tag_name() {
             Some(v) => v,
@@ -449,10 +440,7 @@ fn resolve_lg_attr<'a, 'input: 'a>(
     node
 }
 
-fn resolve_rg_attr<'a, 'input>(
-    node: rosvgtree::Node<'a, 'input>,
-    name: AId,
-) -> rosvgtree::Node<'a, 'input> {
+fn resolve_rg_attr<'a, 'input>(node: SvgNode<'a, 'input>, name: AId) -> SvgNode<'a, 'input> {
     for link in node.href_iter() {
         let tag_name = match link.tag_name() {
             Some(v) => v,
@@ -487,9 +475,9 @@ fn resolve_rg_attr<'a, 'input>(
 }
 
 fn resolve_pattern_attr<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
+    node: SvgNode<'a, 'input>,
     name: AId,
-) -> rosvgtree::Node<'a, 'input> {
+) -> SvgNode<'a, 'input> {
     for link in node.href_iter() {
         let tag_name = match link.tag_name() {
             Some(v) => v,
@@ -508,10 +496,7 @@ fn resolve_pattern_attr<'a, 'input: 'a>(
     node
 }
 
-fn resolve_filter_attr<'a, 'input: 'a>(
-    node: rosvgtree::Node<'a, 'input>,
-    aid: AId,
-) -> rosvgtree::Node<'a, 'input> {
+fn resolve_filter_attr<'a, 'input: 'a>(node: SvgNode<'a, 'input>, aid: AId) -> SvgNode<'a, 'input> {
     for link in node.href_iter() {
         let tag_name = match link.tag_name() {
             Some(v) => v,

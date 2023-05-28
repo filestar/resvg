@@ -20,43 +20,42 @@
 
 pub mod filter;
 mod geom;
-mod pathdata;
 mod text;
-pub mod utils;
 
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub use strict_num::{ApproxEq, ApproxEqUlps, NonZeroPositiveF64, NormalizedF64, PositiveF64};
+pub use strict_num::{self, ApproxEqUlps, NonZeroPositiveF32, NormalizedF32, PositiveF32};
 pub use svgtypes::{Align, AspectRatio};
 
+pub use tiny_skia_path;
+
 pub use crate::geom::*;
-pub use crate::pathdata::*;
 pub use crate::text::*;
 
-/// An alias to `NormalizedF64`.
-pub type Opacity = NormalizedF64;
+/// An alias to `NormalizedF32`.
+pub type Opacity = NormalizedF32;
 
-/// A non-zero `f64`.
+/// A non-zero `f32`.
 ///
-/// Just like `f64` but immutable and guarantee to never be zero.
+/// Just like `f32` but immutable and guarantee to never be zero.
 #[derive(Clone, Copy, Debug)]
-pub struct NonZeroF64(f64);
+pub struct NonZeroF32(f32);
 
-impl NonZeroF64 {
-    /// Creates a new `NonZeroF64` value.
+impl NonZeroF32 {
+    /// Creates a new `NonZeroF32` value.
     #[inline]
-    pub fn new(n: f64) -> Option<Self> {
-        if n.is_fuzzy_zero() {
+    pub fn new(n: f32) -> Option<Self> {
+        if n.approx_eq_ulps(&0.0, 4) {
             None
         } else {
-            Some(NonZeroF64(n))
+            Some(NonZeroF32(n))
         }
     }
 
     /// Returns an underlying value.
     #[inline]
-    pub fn value(&self) -> f64 {
+    pub fn get(&self) -> f32 {
         self.0
     }
 }
@@ -300,10 +299,10 @@ pub struct LinearGradient {
     /// Can't be empty.
     pub id: String,
 
-    pub x1: f64,
-    pub y1: f64,
-    pub x2: f64,
-    pub y2: f64,
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
 
     /// Base gradient data.
     pub base: BaseGradient,
@@ -329,11 +328,11 @@ pub struct RadialGradient {
     /// Can't be empty.
     pub id: String,
 
-    pub cx: f64,
-    pub cy: f64,
-    pub r: PositiveF64,
-    pub fx: f64,
-    pub fy: f64,
+    pub cx: f32,
+    pub cy: f32,
+    pub r: PositiveF32,
+    pub fx: f32,
+    pub fy: f32,
 
     /// Base gradient data.
     pub base: BaseGradient,
@@ -347,8 +346,8 @@ impl std::ops::Deref for RadialGradient {
     }
 }
 
-/// An alias to `NormalizedF64`.
-pub type StopOffset = NormalizedF64;
+/// An alias to `NormalizedF32`.
+pub type StopOffset = NormalizedF32;
 
 /// Gradient's stop element.
 ///
@@ -401,7 +400,7 @@ pub struct Pattern {
     /// Pattern rectangle.
     ///
     /// `x`, `y`, `width` and `height` in SVG.
-    pub rect: Rect,
+    pub rect: NonZeroRect,
 
     /// Pattern viewbox.
     pub view_box: Option<ViewBox>,
@@ -412,19 +411,19 @@ pub struct Pattern {
     pub root: Node,
 }
 
-/// An alias to `NonZeroPositiveF64`.
-pub type StrokeWidth = NonZeroPositiveF64;
+/// An alias to `NonZeroPositiveF32`.
+pub type StrokeWidth = NonZeroPositiveF32;
 
 /// A `stroke-miterlimit` value.
 ///
-/// Just like `f64` but immutable and guarantee to be >=1.0.
+/// Just like `f32` but immutable and guarantee to be >=1.0.
 #[derive(Clone, Copy, Debug)]
-pub struct StrokeMiterlimit(f64);
+pub struct StrokeMiterlimit(f32);
 
 impl StrokeMiterlimit {
     /// Creates a new `StrokeMiterlimit` value.
     #[inline]
-    pub fn new(n: f64) -> Self {
+    pub fn new(n: f32) -> Self {
         debug_assert!(n.is_finite());
         debug_assert!(n >= 1.0);
 
@@ -435,7 +434,7 @@ impl StrokeMiterlimit {
 
     /// Returns an underlying value.
     #[inline]
-    pub fn get(&self) -> f64 {
+    pub fn get(&self) -> f32 {
         self.0
     }
 }
@@ -447,9 +446,9 @@ impl Default for StrokeMiterlimit {
     }
 }
 
-impl From<f64> for StrokeMiterlimit {
+impl From<f32> for StrokeMiterlimit {
     #[inline]
-    fn from(n: f64) -> Self {
+    fn from(n: f32) -> Self {
         Self::new(n)
     }
 }
@@ -457,7 +456,7 @@ impl From<f64> for StrokeMiterlimit {
 impl PartialEq for StrokeMiterlimit {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.0.fuzzy_eq(&other.0)
+        self.0.approx_eq_ulps(&other.0, 4)
     }
 }
 
@@ -500,8 +499,8 @@ impl Default for LineJoin {
 #[derive(Clone, Debug)]
 pub struct Stroke {
     pub paint: Paint,
-    pub dasharray: Option<Vec<f64>>,
-    pub dashoffset: f32, // f32 and not f64 to reduce the struct size.
+    pub dasharray: Option<Vec<f32>>,
+    pub dashoffset: f32,
     pub miterlimit: StrokeMiterlimit,
     pub opacity: Opacity,
     pub width: StrokeWidth,
@@ -725,7 +724,7 @@ pub struct Mask {
     /// Mask rectangle.
     ///
     /// `x`, `y`, `width` and `height` in SVG.
-    pub rect: Rect,
+    pub rect: NonZeroRect,
 
     /// Mask type.
     ///
@@ -818,17 +817,7 @@ pub struct Group {
     /// Element's filters.
     pub filters: Vec<Rc<filter::Filter>>,
 
-    /// Contains a fill color or paint server used by `FilterInput::FillPaint`.
-    ///
-    /// Will be set only when filter actually has a `FilterInput::FillPaint`.
-    pub filter_fill: Option<Paint>,
-
-    /// Contains a fill color or paint server used by `FilterInput::StrokePaint`.
-    ///
-    /// Will be set only when filter actually has a `FilterInput::StrokePaint`.
-    pub filter_stroke: Option<Paint>,
-
-    /// Title.
+    /// Element's title.
     pub title: Option<String>,
 }
 
@@ -843,8 +832,6 @@ impl Default for Group {
             clip_path: None,
             mask: None,
             filters: Vec::new(),
-            filter_fill: None,
-            filter_stroke: None,
             title: None,
         }
     }
@@ -859,6 +846,23 @@ impl Group {
             || self.mask.is_some()
             || !self.filters.is_empty()
             || self.blend_mode != BlendMode::Normal // TODO: probably not needed?
+    }
+
+    /// Contains a fill paint used by `FilterInput::FillPaint`.
+    pub fn filter_fill_paint(&self) -> Option<&Paint> {
+        // While we can have multiple filters, only one can have Paint.
+        self.filters
+            .iter()
+            .filter_map(|f| f.fill_paint.as_ref())
+            .next()
+    }
+
+    /// Contains a stroke paint used by `FilterInput::StrokePaint`.
+    pub fn filter_stroke_paint(&self) -> Option<&Paint> {
+        self.filters
+            .iter()
+            .filter_map(|f| f.stroke_paint.as_ref())
+            .next()
     }
 }
 
@@ -931,19 +935,21 @@ pub struct Path {
     ///
     /// As the name suggests, this property will be set only for paths
     /// that were converted from text.
-    pub text_bbox: Option<Rect>,
+    pub text_bbox: Option<NonZeroRect>,
 
     /// Segments list.
     ///
     /// All segments are in absolute coordinates.
-    pub data: Rc<PathData>,
+
+    pub data: Rc<tiny_skia_path::Path>,
 
     /// Title.
     pub title: Option<String>,
 }
 
-impl Default for Path {
-    fn default() -> Self {
+impl Path {
+    /// Creates a new `Path` with default values.
+    pub fn new(data: Rc<tiny_skia_path::Path>) -> Self {
         Path {
             id: String::new(),
             transform: Transform::default(),
@@ -954,7 +960,7 @@ impl Default for Path {
             rendering_mode: ShapeRendering::default(),
             vector_effect: VectorEffect::default(),
             text_bbox: None,
-            data: Rc::new(PathData::default()),
+            data,
             title: None,
         }
     }
@@ -1126,8 +1132,10 @@ fn loop_over_paint_servers(root: &Node, f: &mut dyn FnMut(&Paint)) {
 
     for node in root.descendants() {
         if let NodeKind::Group(ref group) = *node.borrow() {
-            push(group.filter_fill.as_ref(), f);
-            push(group.filter_stroke.as_ref(), f);
+            for filter in &group.filters {
+                push(filter.fill_paint.as_ref(), f);
+                push(filter.stroke_paint.as_ref(), f);
+            }
         } else if let NodeKind::Path(ref path) = *node.borrow() {
             push(path.fill.as_ref().map(|f| &f.paint), f);
             push(path.stroke.as_ref().map(|f| &f.paint), f);
@@ -1212,8 +1220,10 @@ fn node_subroots(node: &Node, f: &mut dyn FnMut(Node)) {
 
     match *node.borrow() {
         NodeKind::Group(ref g) => {
-            push_patt(g.filter_fill.as_ref());
-            push_patt(g.filter_stroke.as_ref());
+            for filter in &g.filters {
+                push_patt(filter.fill_paint.as_ref());
+                push_patt(filter.stroke_paint.as_ref());
+            }
 
             if let Some(ref clip) = g.clip_path {
                 f(clip.root.clone());
@@ -1300,11 +1310,9 @@ pub trait NodeExt {
 
     /// Calculates node's absolute bounding box.
     ///
-    /// Can be expensive on large paths and groups.
-    ///
     /// Always returns `None` for `NodeKind::Text` since we cannot calculate its bbox
     /// without converting it into paths first.
-    fn calculate_bbox(&self) -> Option<PathBbox>;
+    fn calculate_bbox(&self) -> Option<Rect>;
 
     /// Calls a closure for each subroot this `Node` has.
     ///
@@ -1350,7 +1358,7 @@ impl NodeExt for Node {
 
         let mut abs_ts = Transform::default();
         for ts in ts_list.iter().rev() {
-            abs_ts.append(ts);
+            abs_ts = abs_ts.pre_concat(*ts);
         }
 
         abs_ts
@@ -1364,8 +1372,8 @@ impl NodeExt for Node {
     }
 
     #[inline]
-    fn calculate_bbox(&self) -> Option<PathBbox> {
-        calc_node_bbox(self, self.abs_transform())
+    fn calculate_bbox(&self) -> Option<Rect> {
+        calc_node_bbox(self, self.abs_transform()).and_then(|r| r.to_rect())
     }
 
     fn subroots<F: FnMut(Node)>(&self, mut f: F) {
@@ -1373,26 +1381,22 @@ impl NodeExt for Node {
     }
 }
 
-fn calc_node_bbox(node: &Node, ts: Transform) -> Option<PathBbox> {
+fn calc_node_bbox(node: &Node, ts: Transform) -> Option<BBox> {
     match *node.borrow() {
-        NodeKind::Path(ref path) => path.data.bbox_with_transform(ts, path.stroke.as_ref()),
-        NodeKind::Image(ref img) => {
-            let path = PathData::from_rect(img.view_box.rect);
-            path.bbox_with_transform(ts, None)
-        }
+        NodeKind::Path(ref path) => path.data.bounds().transform(ts).map(BBox::from),
+        NodeKind::Image(ref img) => img.view_box.rect.transform(ts).map(BBox::from),
         NodeKind::Group(_) => {
-            let mut bbox = PathBbox::new_bbox();
+            let mut bbox = BBox::default();
 
             for child in node.children() {
-                let mut child_transform = ts;
-                child_transform.append(&child.transform());
+                let child_transform = ts.pre_concat(child.transform());
                 if let Some(c_bbox) = calc_node_bbox(&child, child_transform) {
                     bbox = bbox.expand(c_bbox);
                 }
             }
 
             // Make sure bbox was changed.
-            if bbox.fuzzy_eq(&PathBbox::new_bbox()) {
+            if bbox.is_default() {
                 return None;
             }
 

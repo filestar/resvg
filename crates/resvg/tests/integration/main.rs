@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use rgb::FromSlice;
+use rgb::{FromSlice, RGBA8};
 use usvg::{fontdb, TreeParsing, TreeTextToPath};
 
 #[rustfmt::skip]
@@ -41,9 +41,7 @@ pub fn render(name: &str) -> usize {
     };
 
     let rtree = resvg::Tree::from_usvg(&tree);
-    let size = resvg::IntSize::from_usvg(rtree.size)
-        .scale_to_width(IMAGE_SIZE)
-        .unwrap();
+    let size = rtree.size.to_int_size().scale_to_width(IMAGE_SIZE).unwrap();
     let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
     let render_ts = tiny_skia::Transform::from_scale(
         size.width() as f32 / tree.size.width() as f32,
@@ -54,7 +52,7 @@ pub fn render(name: &str) -> usize {
     // pixmap.save_png(&format!("tests/{}.png", name)).unwrap();
 
     let mut rgba = pixmap.take();
-    svgfilters::demultiply_alpha(rgba.as_mut_slice().as_rgba_mut());
+    demultiply_alpha(rgba.as_mut_slice().as_rgba_mut());
 
     let expected_data = load_png(&png_path);
     assert_eq!(expected_data.len(), rgba.len());
@@ -91,9 +89,7 @@ pub fn render_extra_with_scale(name: &str, scale: f32) -> usize {
     };
     let rtree = resvg::Tree::from_usvg(&tree);
 
-    let size = resvg::IntSize::from_usvg(rtree.size)
-        .scale_by(scale as f64)
-        .unwrap();
+    let size = rtree.size.to_int_size().scale_by(scale).unwrap();
     let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
 
     let render_ts = tiny_skia::Transform::from_scale(scale, scale);
@@ -102,7 +98,7 @@ pub fn render_extra_with_scale(name: &str, scale: f32) -> usize {
     // pixmap.save_png(&format!("tests/{}.png", name)).unwrap();
 
     let mut rgba = pixmap.take();
-    svgfilters::demultiply_alpha(rgba.as_mut_slice().as_rgba_mut());
+    demultiply_alpha(rgba.as_mut_slice().as_rgba_mut());
 
     let expected_data = load_png(&png_path);
     assert_eq!(expected_data.len(), rgba.len());
@@ -208,4 +204,14 @@ fn gen_diff(name: &str, img1: &[u8], img2: &[u8]) -> Result<(), png::EncodingErr
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
     writer.write_image_data(&img3)
+}
+
+/// Demultiplies provided pixels alpha.
+fn demultiply_alpha(data: &mut [RGBA8]) {
+    for p in data {
+        let a = p.a as f64 / 255.0;
+        p.b = (p.b as f64 / a + 0.5) as u8;
+        p.g = (p.g as f64 / a + 0.5) as u8;
+        p.r = (p.r as f64 / a + 0.5) as u8;
+    }
 }

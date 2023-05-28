@@ -7,7 +7,7 @@ use std::io::Write;
 use std::rc::Rc;
 
 use crate::TreeWriting;
-use usvg_parser::rosvgtree::{AttributeId as AId, ElementId as EId};
+use usvg_parser::{AId, EId};
 use usvg_tree::*;
 use xmlwriter::XmlWriter;
 
@@ -82,7 +82,7 @@ fn conv_filters(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
     let mut filters = Vec::new();
     tree.filters(|filter| {
         if !filters.iter().any(|other| Rc::ptr_eq(&filter, other)) {
-            filters.push(filter.clone());
+            filters.push(filter);
         }
     });
 
@@ -308,7 +308,7 @@ fn conv_filters(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
                         format_args!("{} {}", matrix.matrix.columns, matrix.matrix.rows),
                     );
                     xml.write_numbers(AId::KernelMatrix, &matrix.matrix.data);
-                    xml.write_svg_attribute(AId::Divisor, &matrix.divisor.value());
+                    xml.write_svg_attribute(AId::Divisor, &matrix.divisor.get());
                     xml.write_svg_attribute(AId::Bias, &matrix.bias);
                     xml.write_svg_attribute(AId::TargetX, &matrix.matrix.target_x);
                     xml.write_svg_attribute(AId::TargetY, &matrix.matrix.target_y);
@@ -385,7 +385,14 @@ fn conv_filters(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
                     xml.write_filter_primitive_attrs(fe);
                     xml.write_svg_attribute(AId::Result, &fe.result);
 
-                    xml.write_point(AId::BaseFrequency, turbulence.base_frequency);
+                    xml.write_attribute_fmt(
+                        AId::BaseFrequency.to_str(),
+                        format_args!(
+                            "{} {}",
+                            turbulence.base_frequency_x.get(),
+                            turbulence.base_frequency_y.get()
+                        ),
+                    );
                     xml.write_svg_attribute(AId::NumOctaves, &turbulence.num_octaves);
                     xml.write_svg_attribute(AId::Seed, &turbulence.seed);
                     xml.write_svg_attribute(
@@ -497,7 +504,7 @@ fn conv_defs(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
     let mut clip_paths = Vec::new();
     tree.clip_paths(|clip| {
         if !clip_paths.iter().any(|other| Rc::ptr_eq(&clip, other)) {
-            clip_paths.push(clip.clone());
+            clip_paths.push(clip);
         }
     });
     for clip in clip_paths {
@@ -518,7 +525,7 @@ fn conv_defs(tree: &Tree, opt: &XmlOptions, xml: &mut XmlWriter) {
     let mut masks = Vec::new();
     tree.masks(|mask| {
         if !masks.iter().any(|other| Rc::ptr_eq(&mask, other)) {
-            masks.push(mask.clone());
+            masks.push(mask);
         }
     });
     for mask in masks {
@@ -605,8 +612,11 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
                 // `clip-path` on it.
 
                 if let NodeKind::Path(ref path) = *node.first_child().unwrap().borrow() {
+                    let mut path = path.clone();
+                    path.transform = g.transform.pre_concat(path.transform);
+
                     let clip_id = g.clip_path.as_ref().map(|cp| cp.id.as_str());
-                    write_path(path, is_clip_path, clip_id, opt, xml);
+                    write_path(&path, is_clip_path, clip_id, opt, xml);
                 }
 
                 return;
@@ -634,11 +644,11 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
                     .collect();
                 xml.write_svg_attribute(AId::Filter, &ids.join(" "));
 
-                if let Some(ref fill) = g.filter_fill {
+                if let Some(ref fill) = g.filter_fill_paint() {
                     write_paint(AId::Fill, fill, opt, xml);
                 }
 
-                if let Some(ref stroke) = g.filter_stroke {
+                if let Some(ref stroke) = g.filter_stroke_paint() {
                     write_paint(AId::Stroke, stroke, opt, xml);
                 }
             }
@@ -701,9 +711,8 @@ trait XmlWriterExt {
     fn write_transform(&mut self, id: AId, units: Transform, opt: &XmlOptions);
     fn write_visibility(&mut self, value: Visibility);
     fn write_func_iri(&mut self, aid: AId, id: &str, opt: &XmlOptions);
-    fn write_rect_attrs(&mut self, r: Rect);
-    fn write_numbers(&mut self, aid: AId, list: &[f64]);
-    fn write_point<T: Display>(&mut self, id: AId, p: Point<T>);
+    fn write_rect_attrs(&mut self, r: NonZeroRect);
+    fn write_numbers(&mut self, aid: AId, list: &[f32]);
     fn write_image_data(&mut self, kind: &ImageKind);
     fn write_filter_input(&mut self, id: AId, input: &filter::Input);
     fn write_filter_primitive_attrs(&mut self, fe: &filter::Primitive);
@@ -808,17 +817,17 @@ impl XmlWriterExt for XmlWriter {
         if !ts.is_default() {
             self.write_attribute_raw(id.to_str(), |buf| {
                 buf.extend_from_slice(b"matrix(");
-                write_num(ts.a, buf, opt.transforms_precision);
+                write_num(ts.sx, buf, opt.transforms_precision);
                 buf.push(b' ');
-                write_num(ts.b, buf, opt.transforms_precision);
+                write_num(ts.kx, buf, opt.transforms_precision);
                 buf.push(b' ');
-                write_num(ts.c, buf, opt.transforms_precision);
+                write_num(ts.ky, buf, opt.transforms_precision);
                 buf.push(b' ');
-                write_num(ts.d, buf, opt.transforms_precision);
+                write_num(ts.sy, buf, opt.transforms_precision);
                 buf.push(b' ');
-                write_num(ts.e, buf, opt.transforms_precision);
+                write_num(ts.tx, buf, opt.transforms_precision);
                 buf.push(b' ');
-                write_num(ts.f, buf, opt.transforms_precision);
+                write_num(ts.ty, buf, opt.transforms_precision);
                 buf.extend_from_slice(b")");
             });
         }
@@ -837,14 +846,14 @@ impl XmlWriterExt for XmlWriter {
         self.write_attribute_fmt(aid.to_str(), format_args!("url(#{}{})", prefix, id));
     }
 
-    fn write_rect_attrs(&mut self, r: Rect) {
+    fn write_rect_attrs(&mut self, r: NonZeroRect) {
         self.write_svg_attribute(AId::X, &r.x());
         self.write_svg_attribute(AId::Y, &r.y());
         self.write_svg_attribute(AId::Width, &r.width());
         self.write_svg_attribute(AId::Height, &r.height());
     }
 
-    fn write_numbers(&mut self, aid: AId, list: &[f64]) {
+    fn write_numbers(&mut self, aid: AId, list: &[f32]) {
         self.write_attribute_raw(aid.to_str(), |buf| {
             for n in list {
                 buf.write_fmt(format_args!("{} ", n)).unwrap();
@@ -854,10 +863,6 @@ impl XmlWriterExt for XmlWriter {
                 buf.pop();
             }
         });
-    }
-
-    fn write_point<T: Display>(&mut self, id: AId, p: Point<T>) {
-        self.write_attribute_fmt(id.to_str(), format_args!("{} {}", p.x, p.y));
     }
 
     fn write_filter_input(&mut self, id: AId, input: &filter::Input) {
@@ -1024,53 +1029,57 @@ fn write_path(
     xml.write_transform(AId::Transform, path.transform, opt);
 
     xml.write_attribute_raw("d", |buf| {
+        use tiny_skia_path::PathSegment;
+
         for seg in path.data.segments() {
             match seg {
-                PathSegment::MoveTo { x, y } => {
+                PathSegment::MoveTo(p) => {
                     buf.extend_from_slice(b"M ");
-                    write_num(x, buf, opt.coordinates_precision);
+                    write_num(p.x, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(y, buf, opt.coordinates_precision);
+                    write_num(p.y, buf, opt.coordinates_precision);
                     buf.push(b' ');
                 }
-                PathSegment::LineTo { x, y } => {
+                PathSegment::LineTo(p) => {
                     buf.extend_from_slice(b"L ");
-                    write_num(x, buf, opt.coordinates_precision);
+                    write_num(p.x, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(y, buf, opt.coordinates_precision);
+                    write_num(p.y, buf, opt.coordinates_precision);
                     buf.push(b' ');
                 }
-                PathSegment::CurveTo {
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    x,
-                    y,
-                } => {
+                PathSegment::QuadTo(p1, p) => {
+                    buf.extend_from_slice(b"Q ");
+                    write_num(p1.x, buf, opt.coordinates_precision);
+                    buf.push(b' ');
+                    write_num(p1.y, buf, opt.coordinates_precision);
+                    buf.push(b' ');
+                    write_num(p.x, buf, opt.coordinates_precision);
+                    buf.push(b' ');
+                    write_num(p.y, buf, opt.coordinates_precision);
+                    buf.push(b' ');
+                }
+                PathSegment::CubicTo(p1, p2, p) => {
                     buf.extend_from_slice(b"C ");
-                    write_num(x1, buf, opt.coordinates_precision);
+                    write_num(p1.x, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(y1, buf, opt.coordinates_precision);
+                    write_num(p1.y, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(x2, buf, opt.coordinates_precision);
+                    write_num(p2.x, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(y2, buf, opt.coordinates_precision);
+                    write_num(p2.y, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(x, buf, opt.coordinates_precision);
+                    write_num(p.x, buf, opt.coordinates_precision);
                     buf.push(b' ');
-                    write_num(y, buf, opt.coordinates_precision);
+                    write_num(p.y, buf, opt.coordinates_precision);
                     buf.push(b' ');
                 }
-                PathSegment::ClosePath => {
+                PathSegment::Close => {
                     buf.extend_from_slice(b"Z ");
                 }
             }
         }
 
-        if !path.data.is_empty() {
-            buf.pop();
-        }
+        buf.pop();
     });
 
     conv_title(path.title.as_deref(), xml);
@@ -1108,7 +1117,7 @@ fn write_stroke(stroke: &Option<Stroke>, opt: &XmlOptions, xml: &mut XmlWriter) 
             xml.write_svg_attribute(AId::StrokeOpacity, &stroke.opacity.get());
         }
 
-        if !(stroke.dashoffset as f64).is_fuzzy_zero() {
+        if !stroke.dashoffset.approx_zero_ulps(4) {
             xml.write_svg_attribute(AId::StrokeDashoffset, &stroke.dashoffset)
         }
 
@@ -1183,7 +1192,7 @@ fn write_light_source(light: &filter::LightSource, xml: &mut XmlWriter) {
     xml.end_element();
 }
 
-static POW_VEC: &'static [f64] = &[
+static POW_VEC: &[f32] = &[
     1.0,
     10.0,
     100.0,
@@ -1199,9 +1208,9 @@ static POW_VEC: &'static [f64] = &[
     1_000_000_000_000.0,
 ];
 
-fn write_num(num: f64, buf: &mut Vec<u8>, precision: u8) {
+fn write_num(num: f32, buf: &mut Vec<u8>, precision: u8) {
     // If number is an integer, it's faster to write it as i32.
-    if num.fract().is_fuzzy_zero() {
+    if num.fract().approx_zero_ulps(4) {
         write!(buf, "{}", num as i32).unwrap();
         return;
     }
