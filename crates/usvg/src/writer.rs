@@ -557,10 +557,7 @@ fn conv_title(title: Option<&str>, xml: &mut XmlWriter) {
         return;
     };
 
-    // TODO: this is quite inefficient.
-    let title = title
-        .replace("&", "&amp;")
-        .replace(">", "&gt;");
+    write_text(title, xml);
 
     xml.start_svg_element(EId::Title);
     xml.write_text(&title);
@@ -694,10 +691,81 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
 
             xml.end_element();
         }
-        NodeKind::Text(_) => {
-            log::warn!("text must be converted into paths");
+        NodeKind::Text(ref text) => {
+            xml.start_svg_element(EId::Text);
+
+            if !text.id.is_empty() {
+                xml.write_id_attribute(&text.id, opt);
+            }
+
+            xml.write_transform(AId::Transform, text.transform, opt);
+
+            conv_title(text.title.as_deref(), xml);
+
+            // TODO: positions, rotation angles?
+
+            // TODO: special case if there is only one chunk?
+            for chunk in &text.chunks {
+                let Some(first_span) = chunk.spans.first() else {
+                    continue;
+                };
+                
+                conv_tspan(&chunk.text, chunk.x, chunk.y, Some(chunk.anchor), first_span, xml);
+                
+                // TODO: the rest of the spans
+            }
+
+            xml.end_element();
         }
     }
+}
+
+fn conv_tspan(text: &str, x: Option<f32>, y: Option<f32>, anchor: Option<TextAnchor>, span: &TextSpan, xml: &mut XmlWriter) {
+    // `text` contains the text for the entire chunk, not just this span:
+    let text_bytes = &text.as_bytes()[span.start..span.end];
+    let text = std::str::from_utf8(text_bytes).unwrap();
+    
+    xml.start_svg_element(EId::Tspan);
+
+    if let Some(x) = x {
+        xml.write_attribute(AId::X.to_str(), &x);
+    }
+
+    if let Some(y) = y {
+        xml.write_attribute(AId::Y.to_str(), &y);
+    }
+
+    if let Some(anchor) = anchor {
+        if anchor != TextAnchor::default() {
+            let anchor = match anchor {
+                TextAnchor::Start => "start",
+                TextAnchor::Middle => "middle",
+                TextAnchor::End => "end",
+            };
+            xml.write_attribute(AId::TextAnchor.to_str(), anchor);
+        }
+    }
+
+    if let Some(family) = span.font.families.first() {
+        xml.write_attribute(AId::FontFamily.to_str(), family);
+    }
+
+    xml.write_attribute(AId::FontSize.to_str(), &span.font_size);
+
+    xml.write_attribute(AId::FontWeight.to_str(), &span.font.weight);
+
+    write_text(&text, xml);
+
+    xml.end_element();
+}
+
+fn write_text(string: &str, xml: &mut XmlWriter)
+{
+    // TODO: this is quite inefficient.
+    let string = string
+        .replace("&", "&amp;")
+        .replace(">", "&gt;");
+    xml.write_text(&string);
 }
 
 trait XmlWriterExt {
