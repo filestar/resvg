@@ -51,6 +51,7 @@ OPTIONS:
                                     [default: input file directory
                                     or none when reading from stdin]
 
+  --preserve-text                   Disables conversion of text to paths
   --font-family FAMILY              Sets the default font family that will be
                                     used when no 'font-family' is present
                                     [default: Times New Roman]
@@ -119,6 +120,7 @@ struct Args {
     image_rendering: usvg_tree::ImageRendering,
     resources_dir: Option<PathBuf>,
 
+    preserve_text: bool,
     font_family: Option<String>,
     font_size: u32,
     serif_family: Option<String>,
@@ -177,6 +179,7 @@ fn collect_args() -> Result<Args, pico_args::Error> {
             .opt_value_from_str("--resources-dir")
             .unwrap_or_default(),
 
+        preserve_text: input.contains("--preserve-text"),
         font_family: input.opt_value_from_str("--font-family")?,
         font_size: input
             .opt_value_from_fn("--font-size", parse_font_size)?
@@ -430,7 +433,9 @@ fn process(args: Args) -> Result<(), String> {
     }?;
 
     let mut tree = usvg_tree::Tree::from_data(&input_svg, &re_opt).map_err(|e| format!("{}", e))?;
-    tree.convert_text(&fontdb);
+    if !args.preserve_text {
+        tree.convert_text(&fontdb);
+    }
 
     let xml_opt = usvg::XmlOptions {
         id_prefix: args.id_prefix,

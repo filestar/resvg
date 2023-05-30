@@ -557,10 +557,7 @@ fn conv_title(title: Option<&str>, xml: &mut XmlWriter) {
         return;
     };
 
-    // TODO: this is quite inefficient.
-    let title = title
-        .replace("&", "&amp;")
-        .replace(">", "&gt;");
+    write_text(title, xml);
 
     xml.start_svg_element(EId::Title);
     xml.write_text(&title);
@@ -694,10 +691,204 @@ fn conv_element(node: &Node, is_clip_path: bool, opt: &XmlOptions, xml: &mut Xml
 
             xml.end_element();
         }
-        NodeKind::Text(_) => {
-            log::warn!("text must be converted into paths");
+        NodeKind::Text(ref text) => {
+            if text.chunks.is_empty() {
+                log::warn!("Text node is empty");
+                return;
+            }
+
+            xml.start_svg_element(EId::Text);
+
+            if !text.id.is_empty() {
+                xml.write_id_attribute(&text.id, opt);
+            }
+
+            xml.write_transform(AId::Transform, text.transform, opt);
+            if text.writing_mode == WritingMode::TopToBottom {
+                xml.write_svg_attribute(AId::WritingMode, "vertical-rl");
+            }
+
+
+            conv_title(text.title.as_deref(), xml);
+
+            // TODO: text flow (linear or path), per-character positions and rotation angles
+
+            // TODO: special case if there is only one chunk? Or maybe it is better to always
+            // wrap text in a <tspan> element.  
+            for chunk in &text.chunks {
+                // Write the first span with the chunk's X and Y (if any). Subsequent spans will be
+                // laid out relative to the first.
+                let Some(first_span) = chunk.spans.first() else {
+                    continue;
+                };
+
+                conv_tspan(&chunk.text, chunk.x, chunk.y, chunk.anchor, first_span, is_clip_path, opt, xml);
+
+                for span in chunk.spans.iter().skip(1) {
+                    conv_tspan(&chunk.text, None, None, chunk.anchor, span, is_clip_path, opt, xml);
+                }
+            }
+
+            xml.end_element();
         }
     }
+}
+
+fn conv_tspan(text: &str, x: Option<f32>, y: Option<f32>, anchor: TextAnchor, span: &TextSpan, is_clip_path: bool, opt: &XmlOptions, xml: &mut XmlWriter) {
+    // `text` contains the text for the entire chunk, not just this span:
+    let text_bytes = &text.as_bytes()[span.start..span.end];
+    let text = std::str::from_utf8(text_bytes).unwrap();
+    
+    xml.start_svg_element(EId::Tspan);
+
+    if let Some(x) = x {
+        xml.write_svg_attribute(AId::X, &x);
+    }
+
+    if let Some(y) = y {
+        xml.write_svg_attribute(AId::Y, &y);
+    }
+
+    write_fill(&span.fill, is_clip_path, opt, xml);
+    write_stroke(&span.stroke, opt, xml);
+
+    xml.write_visibility(span.visibility);
+
+    if span.paint_order == PaintOrder::StrokeAndFill {
+        xml.write_svg_attribute(AId::PaintOrder, "stroke");
+    }
+
+    if anchor != TextAnchor::default() {
+        let anchor = match anchor {
+            TextAnchor::Start => "start",
+            TextAnchor::Middle => "middle",
+            TextAnchor::End => "end",
+        };
+        xml.write_svg_attribute(AId::TextAnchor, anchor);
+    }
+
+    if let Some(family) = span.font.families.first() {
+        xml.write_svg_attribute(AId::FontFamily, family);
+    }
+
+    xml.write_svg_attribute(AId::FontSize, &span.font_size);
+
+    if span.small_caps {
+        xml.write_svg_attribute(AId::FontVariant, "small-caps");
+    }
+
+    if span.apply_kerning {
+        xml.write_svg_attribute(AId::Style, "font-kerning:normal");
+    }
+
+    // The mapping from usvg-tree decorations back to SVG seems quite tricky. For now, I'll go for
+    // the lazy and woefully incomplete option: applying each type of decoration, but ignoring the
+    // fill and stroke styles thereof.
+    let decorations = [
+        span.decoration.underline.is_some().then_some("underline"),
+        span.decoration.overline.is_some().then_some("overline"),
+        span.decoration.line_through.is_some().then_some("line-through"),
+    ];
+    if decorations.iter().any(|decoration| decoration.is_some()) {
+        xml.write_attribute_raw(AId::TextDecoration.to_str(), |buf| {
+            let mut first = true;
+            for decoration in decorations.iter().flatten() {
+                if !first {
+                    buf.push(b' ');
+                }
+                buf.extend_from_slice(decoration.as_bytes());
+                first = false;
+            }
+        });
+    }
+
+    if span.dominant_baseline != DominantBaseline::default() {
+        let baseline = match span.dominant_baseline {
+            DominantBaseline::Auto => "auto",
+            DominantBaseline::UseScript => "use-script",
+            DominantBaseline::NoChange => "no-change",
+            DominantBaseline::ResetSize => "reset-size",
+            DominantBaseline::Ideographic => "ideographic",
+            DominantBaseline::Alphabetic => "alphabetic",
+            DominantBaseline::Hanging => "hanging",
+            DominantBaseline::Mathematical => "mathematical",
+            DominantBaseline::Central => "central",
+            DominantBaseline::Middle => "middle",
+            DominantBaseline::TextAfterEdge => "text-after-edge",
+            DominantBaseline::TextBeforeEdge => "text-before-edge",
+            // Not supported yet, I guess:
+            //   DominantBaseline::TextTop => "text-top",
+        };
+        xml.write_svg_attribute(AId::DominantBaseline, baseline);
+    }
+
+    if span.alignment_baseline != AlignmentBaseline::default() {
+        let baseline = match span.alignment_baseline {
+            AlignmentBaseline::Auto => "auto",
+            AlignmentBaseline::Baseline => "baseline",
+            AlignmentBaseline::BeforeEdge => "before-edge",
+            // Not supported yet, I guess:
+            //   AlignmentBaseline::TextBottom => "text-bottom",
+            AlignmentBaseline::TextBeforeEdge => "text-before-edge",
+            AlignmentBaseline::Middle => "middle",
+            AlignmentBaseline::Central => "central",
+            AlignmentBaseline::AfterEdge => "after-edge",
+            // Not supported yet, I guess:
+            //   AlignmentBaseline::TextTop => "text-top",
+            AlignmentBaseline::TextAfterEdge => "text-after-edge",
+            AlignmentBaseline::Ideographic => "ideographic",
+            AlignmentBaseline::Alphabetic => "alphabetic",
+            AlignmentBaseline::Hanging => "hanging",
+            AlignmentBaseline::Mathematical => "mathematical",
+            // Not supported yet, I guess:
+            //   AlignmentBaseline::Top => "top",
+            //   AlignmentBaseline::Center => "center",
+            //   AlignmentBaseline::Bottom => "bottom",
+        };
+        xml.write_svg_attribute(AId::AlignmentBaseline, baseline);
+    }
+
+    // Much like with decorations, it seems difficult to perfectly map baseline shifts from
+    // usvg-tree back to SVG. So I will just take the last one from the list and hope for the best:
+    if let Some(last_baseline_shift) = span.baseline_shift.last() {
+        if *last_baseline_shift != BaselineShift::Baseline {
+            let a = AId::BaselineShift.to_str();
+            match last_baseline_shift {
+                BaselineShift::Baseline => xml.write_attribute(a, "0"),
+                BaselineShift::Subscript => xml.write_attribute(a, "sub"),
+                BaselineShift::Superscript => xml.write_attribute(a, "super"),
+                BaselineShift::Number(num) => xml.write_attribute(a, num),
+            }
+        }
+    }
+
+    xml.write_svg_attribute(AId::LetterSpacing, &span.letter_spacing);
+    xml.write_svg_attribute(AId::WordSpacing, &span.word_spacing);
+
+    if let Some(text_length) = span.text_length {
+        xml.write_svg_attribute(AId::TextLength, &text_length);
+    }
+
+    if span.length_adjust == LengthAdjust::SpacingAndGlyphs {
+        xml.write_svg_attribute(AId::LengthAdjust, "spacingAndGlyphs");
+    }
+
+    xml.write_svg_attribute(AId::FontWeight, &span.font.weight);
+
+    conv_title(span.title.as_deref(), xml);
+
+    write_text(&text, xml);
+
+    xml.end_element();
+}
+
+fn write_text(string: &str, xml: &mut XmlWriter)
+{
+    // TODO: this is quite inefficient.
+    let string = string
+        .replace("&", "&amp;")
+        .replace(">", "&gt;");
+    xml.write_text(&string);
 }
 
 trait XmlWriterExt {
