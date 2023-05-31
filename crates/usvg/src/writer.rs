@@ -556,11 +556,9 @@ fn conv_title(title: Option<&str>, xml: &mut XmlWriter) {
     let Some(title) = title else {
         return;
     };
-
-    write_text(title, xml);
-
+    
     xml.start_svg_element(EId::Title);
-    xml.write_text(&title);
+    write_text(title, xml);
     xml.end_element();
 }
 
