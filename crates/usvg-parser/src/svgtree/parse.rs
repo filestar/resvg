@@ -278,10 +278,6 @@ pub(crate) fn parse_svg_element<'input>(
         }
     }
 
-    if doc.nodes.len() > 1_000_000 {
-        return Err(Error::NodesLimitReached);
-    }
-
     let node_id = doc.append(
         parent_id,
         NodeKind::Element {
