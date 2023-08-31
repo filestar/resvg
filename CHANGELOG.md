@@ -8,6 +8,18 @@ This changelog also contains important changes in dependencies.
 
 ## [Unreleased]
 
+## [0.35.0] - 2023-06-27
+### Fixed
+- Panic when an element is completely outside the viewbox.
+
+### Removed
+- `FillPaint` and `StrokePaint` filter inputs support.
+  It's a mostly undocumented SVG feature that no one supports and no one uses.
+  And it was adding a significant complexity to the codebase.
+- `usvg::filter::Filter::fill_paint` and `usvg::filter::Filter::stroke_paint`.
+- `BackgroundImage`, `BackgroundAlpha`, `FillPaint` and `StrokePaint` from `usvg::filter::Input`.
+- `usvg::Group::filter_fill_paint` and `usvg::Group::filter_stroke_paint`.
+
 ## [0.34.1] - 2023-05-28
 ### Fixed
 - Transform components order. Affects only `usvg` SVG output and C API.
@@ -910,7 +922,8 @@ This changelog also contains important changes in dependencies.
 ### Fixed
 - `font-size` attribute inheritance during `use` resolving.
 
-[Unreleased]: https://github.com/RazrFalcon/resvg/compare/v0.34.1...HEAD
+[Unreleased]: https://github.com/RazrFalcon/resvg/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/RazrFalcon/resvg/compare/v0.34.1...v0.35.0
 [0.34.1]: https://github.com/RazrFalcon/resvg/compare/v0.34.0...v0.34.1
 [0.34.0]: https://github.com/RazrFalcon/resvg/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/RazrFalcon/resvg/compare/v0.32.0...v0.33.0
