@@ -30,9 +30,9 @@ typedef enum {
      */
     RESVG_OK = 0,
     /**
-     * Only UTF-8 content are supported.
+     * Only UTF-8 or UTF-16 content is supported.
      */
-    RESVG_ERROR_NOT_AN_UTF8_STR,
+    RESVG_ERROR_UNRECOGNIZED_ENCODING,
     /**
      * Failed to open the provided file.
      */
@@ -307,7 +307,7 @@ void resvg_options_load_font_data(resvg_options *opt, const char *data, uintptr_
  *
  * Has no effect when the `text` feature is not enabled.
  *
- * @return #resvg_error with RESVG_OK, RESVG_ERROR_NOT_AN_UTF8_STR or RESVG_ERROR_FILE_OPEN_FAILED
+ * @return #resvg_error with RESVG_OK, RESVG_ERROR_UNRECOGNIZED_ENCODING or RESVG_ERROR_FILE_OPEN_FAILED
  */
 int32_t resvg_options_load_font_file(resvg_options *opt, const char *file_path);
 

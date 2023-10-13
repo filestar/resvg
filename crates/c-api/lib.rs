@@ -23,8 +23,8 @@ use resvg::usvg::{fontdb, TreeTextToPath};
 pub enum resvg_error {
     /// Everything is ok.
     OK = 0,
-    /// Only UTF-8 content are supported.
-    NOT_AN_UTF8_STR,
+    /// Only UTF-8 or UTF-16 content is supported.
+    UNRECOGNIZED_ENCODING,
     /// Failed to open the provided file.
     FILE_OPEN_FAILED,
     /// Compressed SVG must use the GZip algorithm.
@@ -424,7 +424,7 @@ pub extern "C" fn resvg_options_load_font_data(
 ///
 /// Has no effect when the `text` feature is not enabled.
 ///
-/// @return #resvg_error with RESVG_OK, RESVG_ERROR_NOT_AN_UTF8_STR or RESVG_ERROR_FILE_OPEN_FAILED
+/// @return #resvg_error with RESVG_OK, RESVG_ERROR_UNRECOGNIZED_ENCODING or RESVG_ERROR_FILE_OPEN_FAILED
 #[no_mangle]
 #[allow(unused_variables)]
 pub extern "C" fn resvg_options_load_font_file(
@@ -435,7 +435,7 @@ pub extern "C" fn resvg_options_load_font_file(
     {
         let file_path = match cstr_to_str(file_path) {
             Some(v) => v,
-            None => return resvg_error::NOT_AN_UTF8_STR as i32,
+            None => return resvg_error::UNRECOGNIZED_ENCODING as i32,
         };
 
         let opt = unsafe {
@@ -513,7 +513,7 @@ pub extern "C" fn resvg_parse_tree_from_file(
 ) -> i32 {
     let file_path = match cstr_to_str(file_path) {
         Some(v) => v,
-        None => return resvg_error::NOT_AN_UTF8_STR as i32,
+        None => return resvg_error::UNRECOGNIZED_ENCODING as i32,
     };
 
     let raw_opt = unsafe {
@@ -833,7 +833,7 @@ fn cstr_to_str(text: *const c_char) -> Option<&'static str> {
 
 fn convert_error(e: usvg::Error) -> resvg_error {
     match e {
-        usvg::Error::NotAnUtf8Str => resvg_error::NOT_AN_UTF8_STR,
+        usvg::Error::UnrecognizedEncoding => resvg_error::UNRECOGNIZED_ENCODING,
         usvg::Error::MalformedGZip => resvg_error::MALFORMED_GZIP,
         usvg::Error::ElementsLimitReached => resvg_error::ELEMENTS_LIMIT_REACHED,
         usvg::Error::InvalidSize => resvg_error::INVALID_SIZE,

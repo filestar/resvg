@@ -38,6 +38,7 @@ mod units;
 mod use_node;
 
 use std::borrow::Cow;
+use std::convert::TryInto;
 
 pub use crate::options::*;
 pub use image::ImageHrefResolver;
@@ -47,8 +48,8 @@ pub use svgtree::{AId, EId};
 /// List of all errors.
 #[derive(Debug)]
 pub enum Error {
-    /// Only UTF-8 content are supported.
-    NotAnUtf8Str,
+    /// Only UTF-8 or UTF-16 content is supported.
+    UnrecognizedEncoding,
 
     /// Compressed SVG must use the GZip algorithm.
     MalformedGZip,
@@ -76,8 +77,8 @@ impl From<roxmltree::Error> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            Error::NotAnUtf8Str => {
-                write!(f, "provided data has not an UTF-8 encoding")
+            Error::UnrecognizedEncoding => {
+                write!(f, "provided data has an unrecognized encoding")
             }
             Error::MalformedGZip => {
                 write!(f, "provided data has a malformed GZip content")
@@ -138,18 +139,52 @@ pub fn preprocess_text<'a>(text: &'a str, opt: &Options) -> Cow<'a, str> {
     }
 }
 
+// TODO: exporting this as a public API of usvg is not great.
+/// Tries to parse bytes as a UTF-16 string
+pub fn string_from_utf16_bytes(bytes: &[u8]) -> Result<String, std::string::FromUtf16Error> {
+    fn without_bom(bytes: &[u8], to_u16: fn([u8; 2]) -> u16) -> Result<String, std::string::FromUtf16Error> {
+        let values = bytes
+            .chunks_exact(2)
+            .map(|chunk| to_u16(chunk.try_into().unwrap()))
+            .collect::<Vec<_>>();
+        String::from_utf16(&values)
+    }
+    fn with_bom(bytes: &[u8], to_u16: fn([u8; 2]) -> u16) -> Result<String, std::string::FromUtf16Error> {
+        if bytes.len() == 2 {
+            return Ok(String::new());
+        }
+        without_bom(&bytes[2..], to_u16)
+    }
+
+    if bytes.starts_with(&[0xFF, 0xFE]) {
+        with_bom(bytes, u16::from_le_bytes)
+    } else if bytes.starts_with(&[0xFE, 0xFF]) {
+        with_bom(bytes, u16::from_be_bytes)
+    } else {
+        // Try both
+        without_bom(bytes, u16::from_le_bytes)
+            .or_else(|_| without_bom(bytes, u16::from_be_bytes))
+    }
+}
+
 impl TreeParsing for usvg_tree::Tree {
     /// Parses `Tree` from an SVG data.
     ///
     /// Can contain an SVG string or a gzip compressed data.
     fn from_data(data: &[u8], opt: &Options) -> Result<Self, Error> {
+        fn to_text(data: &[u8]) -> Result<Cow<'_, str>, Error> {
+            std::str::from_utf8(&data)
+                .map(|svg_string| Cow::Borrowed(svg_string))
+                .or_else(|_| Ok(Cow::Owned(string_from_utf16_bytes(&data)?)))
+                .map_err(|_: std::string::FromUtf16Error| Error::UnrecognizedEncoding)
+        }
         if data.starts_with(&[0x1f, 0x8b]) {
             let data = decompress_svgz(data)?;
-            let text = std::str::from_utf8(&data).map_err(|_| Error::NotAnUtf8Str)?;
-            Self::from_str(text, opt)
+            let text = to_text(&data)?;
+            Self::from_str(&text, opt)
         } else {
-            let text = std::str::from_utf8(data).map_err(|_| Error::NotAnUtf8Str)?;
-            Self::from_str(text, opt)
+            let text = to_text(data)?;
+            Self::from_str(&text, opt)
         }
     }
 

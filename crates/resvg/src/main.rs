@@ -4,6 +4,7 @@
 
 #![allow(clippy::uninlined_format_args)]
 
+use std::borrow::Cow;
 use std::path;
 
 use usvg::{fontdb, NodeExt, TreeParsing, TreeTextToPath};
@@ -72,8 +73,10 @@ fn process() -> Result<(), String> {
     };
 
     let svg_string = std::str::from_utf8(&svg_data)
-        .map_err(|_| "provided data has not an UTF-8 encoding".to_string())?;
-    let svg_string = usvg::preprocess_text(svg_string, &args.usvg);
+        .map(|svg_string| Cow::Borrowed(svg_string))
+        .or_else(|_| Ok(Cow::Owned(usvg::string_from_utf16_bytes(&svg_data)?)))
+        .map_err(|_: std::string::FromUtf16Error| "provided data has unrecognized encoding".to_string())?;
+    let svg_string = usvg::preprocess_text(&svg_string, &args.usvg);
 
     let xml_tree = timed(args.perf, "XML Parsing", || {
         let xml_opt = usvg::roxmltree::ParsingOptions {
