@@ -562,8 +562,7 @@ checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 [[package]]
 name = "roxmltree"
 version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+source = "git+https://github.com/filestar/roxmltree.git?rev=0a4891012363631a9b11c4604ff470305570b0b1#0a4891012363631a9b11c4604ff470305570b0b1"
 dependencies = [
  "memchr",
 ]
