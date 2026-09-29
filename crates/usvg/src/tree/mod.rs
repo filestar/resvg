@@ -1025,6 +1025,20 @@ impl Node {
     }
 }
 
+/// A `vector-effect` (Filestar).
+///
+/// usvg does not apply it; it is kept so that it can be written back.
+#[allow(missing_docs)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum VectorEffect {
+    #[default]
+    None,
+    NonScalingStroke,
+    NonScalingSize,
+    NonRotation,
+    FixedPosition,
+}
+
 /// A group container.
 ///
 /// The preprocessor will remove all groups that don't impact rendering.
@@ -1051,6 +1065,7 @@ pub struct Group {
     pub(crate) layer_bounding_box: NonZeroRect,
     pub(crate) abs_layer_bounding_box: NonZeroRect,
     pub(crate) children: Vec<Node>,
+    pub(crate) title: Option<String>,
 }
 
 impl Group {
@@ -1074,6 +1089,7 @@ impl Group {
             layer_bounding_box: NonZeroRect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
             abs_layer_bounding_box: NonZeroRect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
             children: Vec::new(),
+            title: None,
         }
     }
 
@@ -1084,6 +1100,11 @@ impl Group {
     /// Can be empty.
     pub fn id(&self) -> &str {
         &self.id
+    }
+
+    /// Element's title (Filestar): a `title` child or `inkscape:label`.
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
     }
 
     /// Element's transform.
@@ -1292,6 +1313,8 @@ pub struct Path {
     pub(crate) abs_bounding_box: Rect,
     pub(crate) stroke_bounding_box: Rect,
     pub(crate) abs_stroke_bounding_box: Rect,
+    pub(crate) vector_effect: VectorEffect,
+    pub(crate) title: Option<String>,
 }
 
 impl Path {
@@ -1350,6 +1373,8 @@ impl Path {
             abs_bounding_box,
             stroke_bounding_box,
             abs_stroke_bounding_box,
+            vector_effect: VectorEffect::None,
+            title: None,
         })
     }
 
@@ -1519,6 +1544,7 @@ pub struct Image {
     pub(crate) kind: ImageKind,
     pub(crate) abs_transform: Transform,
     pub(crate) abs_bounding_box: NonZeroRect,
+    pub(crate) title: Option<String>,
 }
 
 impl Image {

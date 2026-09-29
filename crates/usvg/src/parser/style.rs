@@ -294,3 +294,18 @@ fn conv_dasharray(node: SvgNode, state: &converter::State) -> Option<Vec<f32>> {
 
     Some(list)
 }
+
+/// Resolves `vector-effect` (Filestar). usvg does not apply it; the writer writes it back.
+pub(crate) fn resolve_vector_effect(node: SvgNode) -> crate::VectorEffect {
+    use crate::VectorEffect;
+    let Some(value) = node.find_attribute::<&str>(AId::VectorEffect) else {
+        return VectorEffect::None;
+    };
+    match value.trim() {
+        "non-scaling-stroke" => VectorEffect::NonScalingStroke,
+        "non-scaling-size" => VectorEffect::NonScalingSize,
+        "non-rotation" => VectorEffect::NonRotation,
+        "fixed-position" => VectorEffect::FixedPosition,
+        _ => VectorEffect::None,
+    }
+}

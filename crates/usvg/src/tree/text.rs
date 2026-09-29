@@ -589,6 +589,7 @@ pub struct Text {
     pub(crate) flattened: Box<Group>,
     #[cfg(feature = "text")]
     pub(crate) layouted: Vec<Span>,
+    pub(crate) title: Option<String>,
 }
 
 impl Text {

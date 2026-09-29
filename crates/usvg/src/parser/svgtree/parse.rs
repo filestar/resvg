@@ -12,6 +12,7 @@ use super::{AId, Attribute, Document, EId, NodeData, NodeId, NodeKind, ShortRang
 const SVG_NS: &str = "http://www.w3.org/2000/svg";
 const XLINK_NS: &str = "http://www.w3.org/1999/xlink";
 const XML_NAMESPACE_NS: &str = "http://www.w3.org/XML/1998/namespace";
+const INKSCAPE_NS: &str = "http://www.inkscape.org/namespaces/inkscape";
 
 impl<'input> Document<'input> {
     /// Parses a [`Document`] from a [`roxmltree::Document`].
@@ -201,6 +202,8 @@ fn parse_xml_node<'input>(
     let node_id = parse_svg_element(node, parent_id, tag_name, style_sheet, ignore_ids, doc)?;
     if tag_name == EId::Text {
         super::text::parse_svg_text_element(node, node_id, style_sheet, doc)?;
+    } else if tag_name == EId::Title {
+        super::text::parse_svg_title_element(node, node_id, doc);
     } else if tag_name == EId::Use {
         parse_svg_use_element(node, origin, node_id, style_sheet, depth + 1, doc, id_map)?;
     } else {
@@ -234,6 +237,8 @@ pub(crate) fn parse_svg_element<'input>(
     for attr in xml_node.attributes() {
         match attr.namespace() {
             None | Some(SVG_NS) | Some(XLINK_NS) | Some(XML_NAMESPACE_NS) => {}
+            // Filestar: only inkscape:label, read as a title.
+            Some(INKSCAPE_NS) if attr.name() == "label" => {}
             _ => continue,
         }
 
@@ -414,9 +419,7 @@ pub(crate) fn parse_svg_element<'input>(
         }
     }
 
-    if doc.nodes.len() > 1_000_000 {
-        return Err(Error::NodesLimitReached);
-    }
+    // Filestar: no 1,000,000 element limit. Real drawings (embroidery, CAD exports) exceed it.
 
     let node_id = doc.append(
         parent_id,

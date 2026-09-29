@@ -194,6 +194,7 @@ pub(crate) fn flatten(text: &mut Text, cache: &mut Cache) -> Option<(Group, NonZ
 
     let mut group = Group {
         id: text.id.clone(),
+        title: text.title.clone(),
         ..Group::empty()
     };
 
@@ -330,6 +331,7 @@ impl DatabaseExt for Database {
                                 image.width as f32,
                                 image.height as f32,
                             )?,
+                            title: None,
                         },
                         x: image.inner_bearing_x as i16,
                         y: image.inner_bearing_y as i16,

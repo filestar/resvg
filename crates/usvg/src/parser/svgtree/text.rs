@@ -37,6 +37,23 @@ pub(crate) fn parse_svg_text_element<'input>(
     Ok(())
 }
 
+/// Keeps the text of a `title` element as a single text child (Filestar).
+pub(crate) fn parse_svg_title_element(
+    parent: roxmltree::Node,
+    parent_id: NodeId,
+    doc: &mut Document,
+) {
+    let text: String = parent
+        .children()
+        .filter(|n| n.is_text())
+        .filter_map(|n| n.text())
+        .collect();
+    let text = trim_text(text.trim(), XmlSpace::Default);
+    if !text.is_empty() {
+        doc.append(parent_id, NodeKind::Text(text));
+    }
+}
+
 fn parse_svg_text_element_impl<'input>(
     parent: roxmltree::Node<'_, 'input>,
     parent_id: NodeId,

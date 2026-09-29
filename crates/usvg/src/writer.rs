@@ -149,9 +149,9 @@ pub(crate) fn convert(tree: &Tree, opt: &WriteOptions) -> String {
     xml.write_svg_attribute(AId::Width, &tree.size.width());
     xml.write_svg_attribute(AId::Height, &tree.size.height());
     xml.write_attribute("xmlns", "http://www.w3.org/2000/svg");
-    if has_xlink(&tree.root) {
-        xml.write_attribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-    }
+    // Filestar: always declared. A missed case in has_xlink() made an output that no XML reader
+    // accepts, and a namespace that goes unused costs nothing (filestar/resvg 97b0bd8).
+    xml.write_attribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
     let has_text_paths = has_text_paths(&tree.root);
     if tree.has_defs_nodes() || has_text_paths {
@@ -684,6 +684,8 @@ fn write_element(node: &Node, is_clip_path: bool, opt: &WriteOptions, xml: &mut 
 
             xml.write_image_data(&img.kind);
 
+            write_title(img.title.as_deref(), xml);
+
             xml.end_element();
         }
         Node::Group(g) => {
@@ -891,8 +893,20 @@ fn write_group_element(g: &Group, is_clip_path: bool, opt: &WriteOptions, xml: &
         );
     }
 
+    write_title(g.title.as_deref(), xml);
     write_elements(g, false, opt, xml);
 
+    xml.end_element();
+}
+
+/// Writes a `title` child (Filestar): Filestar.Converters.Vector names CDR and PSD layers after it.
+fn write_title(title: Option<&str>, xml: &mut XmlWriter) {
+    let Some(title) = title else {
+        return;
+    };
+
+    xml.start_svg_element(EId::Title);
+    xml.write_text(&title.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;"));
     xml.end_element();
 }
 
@@ -1106,6 +1120,7 @@ impl XmlWriterExt for XmlWriter {
     }
 }
 
+#[allow(dead_code)] // Filestar: see the xmlns:xlink comment in convert()
 fn has_xlink(parent: &Group) -> bool {
     for node in &parent.children {
         match node {
@@ -1213,6 +1228,16 @@ fn write_path(
         ShapeRendering::GeometricPrecision => {}
     }
 
+    match path.vector_effect {
+        VectorEffect::None => {}
+        VectorEffect::NonScalingStroke => {
+            xml.write_svg_attribute(AId::VectorEffect, "non-scaling-stroke")
+        }
+        VectorEffect::NonScalingSize => xml.write_svg_attribute(AId::VectorEffect, "non-scaling-size"),
+        VectorEffect::NonRotation => xml.write_svg_attribute(AId::VectorEffect, "non-rotation"),
+        VectorEffect::FixedPosition => xml.write_svg_attribute(AId::VectorEffect, "fixed-position"),
+    }
+
     if let Some(id) = clip_path {
         xml.write_func_iri(AId::ClipPath, id, opt);
     }
@@ -1272,6 +1297,8 @@ fn write_path(
 
         buf.pop();
     });
+
+    write_title(path.title.as_deref(), xml);
 
     xml.end_element();
 }

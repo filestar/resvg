@@ -76,6 +76,7 @@ k3
 k4
 kernelMatrix
 kernelUnitLength
+label
 kerning
 lengthAdjust
 letter-spacing
