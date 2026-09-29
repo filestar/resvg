@@ -598,6 +598,15 @@ fn resolve_svg_size(svg: &SvgNode, opt: &Options) -> (Result<Size, Error>, bool)
         )
     };
 
+    let size = if opt.forgiving {
+        size.or_else(|| {
+            log::warn!("SVG has an invalid size. Using 1x1.");
+            Size::from_wh(1.0, 1.0)
+        })
+    } else {
+        size
+    };
+
     (size.ok_or(Error::InvalidSize), restore_viewbox)
 }
 
@@ -851,6 +860,7 @@ pub(crate) fn convert_group(
         layer_bounding_box: NonZeroRect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
         abs_layer_bounding_box: NonZeroRect::from_xywh(0.0, 0.0, 1.0, 1.0).unwrap(),
         children: Vec::new(),
+        title: node.title().map(ToOwned::to_owned),
     };
     collect_children(cache, &mut g);
 
@@ -1054,10 +1064,12 @@ fn convert_path(
         path_transform,
     );
 
-    let path = match path {
+    let mut path = match path {
         Some(v) => v,
         None => return,
     };
+    path.vector_effect = super::style::resolve_vector_effect(node);
+    path.title = node.title().map(ToOwned::to_owned);
 
     match (raw_paint_order.order, marker) {
         ([PaintOrderKind::Markers, _, _], Some(markers_node)) => {

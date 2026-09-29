@@ -258,6 +258,7 @@ fn clip_element(
         id,
         transform,
         clip_path: Some(Arc::new(clip_path)),
+        title: node.title().map(ToOwned::to_owned),
         ..Group::empty()
     }
 }

@@ -390,6 +390,16 @@ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
         }
     }
 
+    /// Returns the node's title (Filestar): the text of a `title` child,
+    /// or else its `inkscape:label`.
+    pub fn title(&self) -> Option<&'a str> {
+        self.children()
+            .find(|child| child.tag_name() == Some(EId::Title))
+            .map(|child| child.text())
+            .filter(|t| !t.is_empty())
+            .or_else(|| self.attribute(AId::Label))
+    }
+
     /// Returns node's text data.
     ///
     /// For text nodes returns its content. For elements returns the first child node text.

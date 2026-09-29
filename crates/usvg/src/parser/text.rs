@@ -138,6 +138,7 @@ pub(crate) fn convert(
         abs_stroke_bounding_box: dummy,
         flattened: Box::new(Group::empty()),
         layouted: vec![],
+        title: text_node.title().map(ToOwned::to_owned),
     };
 
     if text::convert(&mut text, &state.opt.font_resolver, cache).is_none() {

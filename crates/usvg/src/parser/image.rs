@@ -200,7 +200,18 @@ pub(crate) fn convert(
         rect,
         cache,
         parent,
-    )
+    )?;
+
+    // Filestar: the image's title. convert_inner wraps the image in a group it just pushed.
+    if let Some(title) = node.title() {
+        if let Some(Node::Group(g)) = parent.children.last_mut() {
+            if let Some(Node::Image(img)) = g.children.last_mut() {
+                img.title = Some(title.to_owned());
+            }
+        }
+    }
+
+    Some(())
 }
 
 pub(crate) fn convert_inner(
@@ -246,6 +257,7 @@ pub(crate) fn convert_inner(
         kind,
         abs_transform,
         abs_bounding_box,
+        title: None,
     })));
     g.transform = image_ts;
     g.abs_transform = abs_transform;
