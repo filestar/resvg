@@ -103,6 +103,7 @@ OPTIONS:
                                     Smaller precision can lead to a malformed output in some cases
                                     [values: 2..8 (inclusive)] [default: 8]
   --quiet                           Disables warnings
+  --unforgiving                     Don't try to proceed in the face of parse errors
 
 ARGS:
   <in-svg>                          Input file
@@ -141,6 +142,7 @@ struct Args {
     style_sheet: Option<PathBuf>,
 
     quiet: bool,
+    forgiving: bool,
 
     input: String,
     output: String,
@@ -211,6 +213,7 @@ fn collect_args() -> Result<Args, pico_args::Error> {
         style_sheet: input.opt_value_from_str("--stylesheet").unwrap_or_default(),
 
         quiet: input.contains("--quiet"),
+        forgiving: !input.contains("--unforgiving"),
 
         input: input.free_from_str()?,
         output: input.free_from_str()?,
@@ -432,6 +435,7 @@ fn process(args: Args) -> Result<(), String> {
         font_resolver: usvg::FontResolver::default(),
         fontdb: Arc::new(fontdb),
         style_sheet,
+        forgiving: args.forgiving,
     };
 
     let input_svg = match in_svg {

@@ -31,7 +31,7 @@ data-url = "0.3" # for href parsing
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"], optional = true } # SVGZ decoding
 imagesize = "0.15.0" # raster images size detection
 kurbo = "0.13.0" # Bezier curves utils
-roxmltree = "0.21.1"
+roxmltree = { git = "https://github.com/filestar/roxmltree.git", rev = "0a4891012363631a9b11c4604ff470305570b0b1" } # 0.21.1 + ParsingOptions::forgiving
 simplecss = "0.2"
 siphasher = "1.0" # perfect hash implementation
 

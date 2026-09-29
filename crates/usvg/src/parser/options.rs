@@ -98,6 +98,13 @@ pub struct Options<'a> {
     /// A CSS stylesheet that should be injected into the SVG. Can be used to overwrite
     /// certain attributes.
     pub style_sheet: Option<String>,
+
+    /// Continue in the face of some errors in the input (Filestar):
+    /// NUL characters are removed, attributes that cannot be read are dropped,
+    /// and a document without a valid size gets a 1x1 size.
+    ///
+    /// Default: false
+    pub forgiving: bool,
 }
 
 impl Default for Options<'_> {
@@ -119,6 +126,7 @@ impl Default for Options<'_> {
             #[cfg(feature = "text")]
             fontdb: Arc::new(fontdb::Database::new()),
             style_sheet: None,
+            forgiving: false,
         }
     }
 }
