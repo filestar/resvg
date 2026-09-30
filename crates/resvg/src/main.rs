@@ -68,17 +68,22 @@ fn process() -> Result<(), String> {
         })?;
     };
 
-    let svg_string = std::str::from_utf8(&svg_data)
-        .map_err(|_| "provided data has not an UTF-8 encoding".to_string())?;
+    // Filestar: UTF-16 input, and NUL characters removed when forgiving.
+    let svg_string = usvg::decode_text(&svg_data).map_err(|e| e.to_string())?;
+    let svg_string = usvg::preprocess_text(&svg_string, &args.usvg);
 
     let xml_tree = timed(args.perf, "XML Parsing", || {
         let xml_opt = usvg::roxmltree::ParsingOptions {
             allow_dtd: true,
+            forgiving: args.usvg.forgiving,
             ..Default::default()
         };
-        usvg::roxmltree::Document::parse_with_options(svg_string, xml_opt)
+        usvg::roxmltree::Document::parse_with_options(&svg_string, xml_opt)
             .map_err(|e| e.to_string())
     })?;
+    for e in xml_tree.forgiven_errors() {
+        log::warn!("Ignored an attribute that could not be read: {}.", e);
+    }
 
     // fontdb initialization is pretty expensive, so perform it only when needed.
     let has_text_nodes = xml_tree
@@ -214,6 +219,7 @@ OPTIONS:
 
   --perf                        Prints performance stats
   --quiet                       Disables warnings
+  --unforgiving                 Don't try to proceed in the face of parse errors
 
 ARGS:
   <in-svg>                      Input file
@@ -256,6 +262,7 @@ struct CliArgs {
 
     perf: bool,
     quiet: bool,
+    forgiving: bool,
 
     input: Option<String>,
     output: Option<String>,
@@ -321,6 +328,7 @@ fn collect_args() -> Result<CliArgs, pico_args::Error> {
 
         perf: input.contains("--perf"),
         quiet: input.contains("--quiet"),
+        forgiving: !input.contains("--unforgiving"),
 
         input: input.opt_free_from_str()?,
         output: input.opt_free_from_str()?,
@@ -589,7 +597,7 @@ fn parse_args() -> Result<Args, String> {
         font_resolver: usvg::FontResolver::default(),
         fontdb: Arc::new(fontdb::Database::new()),
         style_sheet,
-        forgiving: false,
+        forgiving: args.forgiving,
     };
 
     Ok(Args {
