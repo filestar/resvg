@@ -9,7 +9,21 @@ use std::sync::Arc;
 use usvg::fontdb;
 
 fn main() {
-    if let Err(e) = process() {
+    // Filestar: the main thread's stack is small, and rendering a drawing whose elements are
+    // chained through filters, `feImage` element references, masks and `use` keeps a frame on
+    // the stack for every nesting level, so a real-world 36k-element drawing (a 1236-deep
+    // compositing chain) overflowed 8 MB (0xC00000FD). Run the whole render on a thread with
+    // a large stack instead: the reservation is virtual and only what is touched is committed.
+    let stack_size: usize = if cfg!(target_pointer_width = "64") {
+        256 * 1024 * 1024
+    } else {
+        64 * 1024 * 1024
+    };
+    let result = std::thread::Builder::new()
+        .stack_size(stack_size)
+        .spawn(process)
+        .and_then(|handle| handle.join().map_err(|_| std::io::Error::other("worker thread panicked")));
+    if let Err(e) = result {
         eprintln!("Error: {}.", e);
         std::process::exit(1);
     }
