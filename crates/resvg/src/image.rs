@@ -170,13 +170,80 @@ mod raster_images {
         }
     }
 
+    /// Average `bx` by `by` blocks of premultiplied pixels (partial blocks at the right and bottom edges
+    /// average what they hold).
+    fn box_reduce(src: &tiny_skia::Pixmap, bx: u32, by: u32) -> Option<tiny_skia::Pixmap> {
+        let (w, h) = (src.width(), src.height());
+        let (nw, nh) = (w.div_ceil(bx), h.div_ceil(by));
+        let mut dst = tiny_skia::Pixmap::new(nw, nh)?;
+        let s = src.data();
+        let d = dst.data_mut();
+        let mut row = vec![0u32; nw as usize * 4];
+        for oy in 0..nh {
+            row.iter_mut().for_each(|v| *v = 0);
+            let (y0, y1) = (oy * by, ((oy + 1) * by).min(h));
+            for y in y0..y1 {
+                let line = &s[(y * w * 4) as usize..((y + 1) * w * 4) as usize];
+                for x in 0..w {
+                    let o = ((x / bx) * 4) as usize;
+                    let i = (x * 4) as usize;
+                    row[o] += line[i] as u32;
+                    row[o + 1] += line[i + 1] as u32;
+                    row[o + 2] += line[i + 2] as u32;
+                    row[o + 3] += line[i + 3] as u32;
+                }
+            }
+            for ox in 0..nw {
+                let n = ((((ox + 1) * bx).min(w) - ox * bx) * (y1 - y0)).max(1);
+                let o = (ox * 4) as usize;
+                let t = ((oy * nw + ox) * 4) as usize;
+                for c in 0..4 {
+                    d[t + c] = ((row[o + c] + n / 2) / n) as u8;
+                }
+            }
+        }
+        Some(dst)
+    }
+
     pub(crate) fn render_raster(
         image: &usvg::ImageKind,
         transform: tiny_skia::Transform,
         rendering_mode: usvg::ImageRendering,
         pixmap: &mut tiny_skia::PixmapMut,
     ) -> Option<()> {
-        let raster = decode_raster(image)?;
+        let mut raster = decode_raster(image)?;
+        let mut transform = transform;
+
+        // tiny-skia samples an image at most bicubically, from the four or sixteen pixels nearest each
+        // device pixel: an image shrunk more than twice skips most of its pixels and comes out speckled
+        // (a 300 dpi photo on a 72 dpi page). Browsers and PDF viewers average instead. Average whole
+        // blocks first so the sampler never shrinks by more than two. Nearest-neighbour images keep
+        // their pixels: they asked not to be smoothed.
+        if !matches!(
+            rendering_mode,
+            ImageRendering::OptimizeSpeed | ImageRendering::CrispEdges | ImageRendering::Pixelated
+        ) {
+            let scale_x = (transform.sx * transform.sx + transform.ky * transform.ky).sqrt();
+            let scale_y = (transform.kx * transform.kx + transform.sy * transform.sy).sqrt();
+            let block = |scale: f32| -> u32 {
+                if scale.is_finite() && scale > 0.0 && scale < 0.5 {
+                    ((0.5 / scale).floor() as u32).clamp(1, 256)
+                } else {
+                    1
+                }
+            };
+            let (bx, by) = (block(scale_x), block(scale_y));
+            if bx > 1 || by > 1 {
+                if let Some(reduced) = box_reduce(&raster, bx, by) {
+                    let (fx, fy) = (
+                        raster.width() as f32 / reduced.width() as f32,
+                        raster.height() as f32 / reduced.height() as f32,
+                    );
+                    transform = transform.pre_scale(fx, fy);
+                    raster = reduced;
+                }
+            }
+        }
 
         let rect = tiny_skia::Size::from_wh(raster.width() as f32, raster.height() as f32)?
             .to_rect(0.0, 0.0)?;
